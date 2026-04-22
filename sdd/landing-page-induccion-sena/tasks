@@ -1,0 +1,21 @@
+# Tasks: Landing Page Inducción SENA
+
+## Phase 1: Canonical content contract
+- [ ] 1.1 Normalizar `martes.md`, `jueves.md` y `viernes.md` con headings canónicos (`Resumen`, `Agenda`, `Temas`, `Responsables`, `Recordatorios`, `Assets pendientes`) y copy explícito de `Contenido pendiente` donde falte información.
+- [ ] 1.2 Alinear `lunes.md` y `miercoles.md` al mismo orden editorial; mantener en `miercoles.md` el `## Bloque institucional SENA` con atribuciones visibles y reservar en `viernes.md` el `## Bloque de exposición` sin inventar texto.
+- [x] 1.3 Crear `assets/js/content-loader.js` para leer `lunes.md`–`viernes.md`, extraer secciones por heading y devolver un arreglo ordenado de días con flags para bloque institucional, exposición y assets pendientes.
+
+## Phase 2: Presentation shell
+- [x] 2.1 Crear `index.html` como landing única tipo presentación, con hero inicial, barra/progreso de días, controles anterior/siguiente y una sección dedicada por cada día.
+- [x] 2.2 Crear `assets/css/styles.css` con layout full-screen o secciones tipo slide, anclas visibles, badges `pending`, cards de agenda y destaque visual fuerte para el miércoles institucional.
+- [x] 2.3 Crear `assets/js/presentation.js` para navegación por botones, anclas y teclado; sincronizar estado activo del día y scroll/avance entre secciones.
+
+## Phase 3: Content rendering
+- [x] 3.1 Completar `assets/js/content-loader.js` para inyectar en `index.html` resumen, agenda, temas, responsables, recordatorios y assets de cada `.md`, preservando referencias oficiales cuando existan.
+- [x] 3.2 Renderizar fallback seguro en `assets/js/content-loader.js` cuando falten bloques o un archivo esté incompleto: mostrar `Contenido pendiente`, mantener estados pendientes y evitar texto inferido.
+- [x] 3.3 Renderizar el miércoles como bloque institucional destacado con atribución visible y el viernes como bloque de exposición reservado, mostrando placeholder si todavía no hay contenido final.
+
+## Phase 4: Verification
+- [ ] 4.1 Hacer smoke check manual sobre `index.html`: navegación presentation-style entre `lunes`–`viernes`, controles anterior/siguiente, anclas y teclado funcionando sin romper el orden semanal.
+- [ ] 4.2 Verificar con contenido real que `miercoles.md` conserva el énfasis institucional, que `viernes.md` muestra el bloque de exposición y que `martes.md`/`jueves.md`/`viernes.md` incompletos caen en `Contenido pendiente`.
+- [ ] 4.3 Revisar el contrato final entre Markdown canónico y rendering JS (`headings`, assets pendientes, atribuciones, flags especiales) para dejar lista la fase `sdd-apply` sin dependencia de frameworks.

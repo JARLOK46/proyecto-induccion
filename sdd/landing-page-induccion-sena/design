@@ -1,0 +1,66 @@
+# Design: Landing Page Inducción SENA
+
+## Technical Approach
+La implementación final será una **single-page static site** en `HTML + CSS + JavaScript`, con foco en contenido aprobado y UX tipo presentación. Los archivos `lunes.md` a `viernes.md` siguen siendo la fuente canónica; `app.js` los carga, los transforma a HTML seguro y los monta como slides full-screen con navegación por día, anterior/siguiente y scroll-snap.
+
+## Architecture Decisions
+| Decision | Options | Tradeoff | Choice |
+|---|---|---|---|
+| Runtime | 11ty / SPA estática / HTML manual duplicado | 11ty agrega pipeline que ya no queremos; HTML manual rompe content-first | **SPA estática con fetch de Markdown** |
+| Markdown integration | Copiar `.md` a `.html` / prebuild custom / fetch client-side | Copiar duplica contenido; prebuild suma pasos; fetch depende de JS pero simplifica el repo | **Fetch client-side de `lunes.md`–`viernes.md`** |
+| Markdown parsing | Parser casero / librería JS local mínima | Parser casero falla con listas, citas y headings reales | **Parser JS mínimo vendorizado localmente** |
+| Presentation UX | páginas separadas / una sola página con slides | páginas separadas cortan la sensación de deck | **Landing única con secciones full-screen** |
+
+## Recommendation
+Recomiendo **landing única + fetch de Markdown + parser JS local**. Es el punto justo: mantiene los `.md` como source of truth, evita build tooling, y deja una experiencia PowerPoint-like sin inventar complejidad.
+
+## Data Flow
+`index.html` -> `app.js` -> fetch `lunes.md`…`viernes.md` -> parse markdown + headings canónicos -> `DaySlideData` -> render slides + nav.
+
+Reglas:
+- Archivo vacío o sección faltante -> tarjeta visible `Contenido pendiente`.
+- `Assets pendientes` -> cards de placeholder; nunca imagen inventada.
+- `## Bloque institucional SENA` en miércoles -> slide/fragmento destacado con atribución.
+- `## Bloque de exposición` en viernes -> reservado aunque siga vacío.
+
+## Folder Structure
+| Path | Action | Description |
+|---|---|---|
+| `index.html` | Create | Shell de la landing, viewport deck y contenedores de navegación |
+| `assets/styles.css` | Create | Tokens, layout full-screen, estados y responsive |
+| `assets/app.js` | Create | Carga, parseo, render, navegación y fallbacks |
+| `assets/vendor/marked.min.js` | Create | Parser Markdown local mínimo, sin CDN |
+| `assets/content-map.js` | Create | Orden de días, labels y metadata básica |
+| `lunes.md`–`viernes.md` | Keep | Contenido canónico aprobado |
+| `sdd/landing-page-induccion-sena/design` | Modify | Diseño actualizado al enfoque plain web |
+
+## Interfaces / Contracts
+```js
+/** @typedef {'lunes'|'martes'|'miercoles'|'jueves'|'viernes'} Weekday */
+/** @typedef {{title:string,status:'pending'|'available',source:string,permission:string,note?:string}} AssetItem */
+/** @typedef {{day:Weekday,title:string,summary:string,html:string,hasInstitutionalBlock:boolean,hasExpositionBlock:boolean,assets:AssetItem[],isPending:boolean}} DaySlideData */
+```
+
+## Rendering Strategy
+- `index.html` entrega estructura base, loader y `<noscript>` con links a los `.md`.
+- `app.js` arma una sola columna de slides con `section[data-day]` y CSS `scroll-snap`.
+- Navegación: botones `Anterior/Siguiente`, índice directo por día, teclado (flechas) y actualización de estado activo con `IntersectionObserver`.
+- Si un día está vacío, se renderiza slide válida con mensaje editorial, no un hueco roto.
+
+## Tradeoffs
+- **A favor**: cero generador estático, menos moving parts, edición directa sobre Markdown, UX de presentación coherente.
+- **En contra**: el contenido depende de JS para render completo; SEO es menor que con HTML pre-renderizado.
+- **Mitigación**: shell accesible, `noscript`, y estructura semántica que permita prerender futuro si hiciera falta.
+
+## Testing Strategy
+| Layer | What to Test | Approach |
+|---|---|---|
+| Unit | Parseo de headings, assets y flags especiales | Fixtures con `lunes.md`, `miercoles.md` y archivos vacíos |
+| Integration | Render de slides, nav activa y fallbacks | Tests DOM en jsdom sobre `app.js` |
+| UX smoke | Prev/next, day jump, slide pending | Checklist manual en navegador |
+
+## Migration / Rollout
+No migration requerida. Primero se adapta el diseño y luego `sdd-tasks` debe reemplazar las tareas acopladas a 11ty por tareas de shell HTML, estilos, app JS y pruebas DOM.
+
+## Open Questions
+- [ ] Confirmar si el hosting final servirá los `.md` directamente junto a `index.html`.

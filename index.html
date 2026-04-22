@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Inducción SENA · Semana de recorrido</title>
+    <meta
+      name="description"
+      content="Landing de inducción SENA construida desde archivos Markdown canónicos, con navegación tipo presentación por cada día de la semana."
+    />
+    <link rel="stylesheet" href="./assets/css/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="ambient-orb" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__kicker">Ruta semanal de inducción</span>
+          <strong class="brand__title">SENA · presentación navegable</strong>
+        </div>
+
+        <div class="topbar__status" aria-label="Estado de avance por la presentación">
+          <div class="progress" aria-hidden="true">
+            <div class="progress__bar" data-progress-bar></div>
+          </div>
+          <span class="status-copy">Vista activa: <strong data-current-label>Intro</strong></span>
+        </div>
+      </header>
+
+      <main class="viewport">
+        <aside class="day-rail" aria-label="Navegación por días">
+          <p class="day-rail__title">Saltá por día sin perder el hilo semanal.</p>
+          <nav class="day-nav" data-day-nav></nav>
+        </aside>
+
+        <section class="slides" data-slides-track>
+          <article class="loading-state" data-loading>
+            <strong>Cargando la semana de inducción...</strong>
+            <p>Si abrís esto como sitio estático, los Markdown del proyecto se transforman en una experiencia tipo presentación sin duplicar contenido.</p>
+          </article>
+        </section>
+      </main>
+
+      <aside class="controls" aria-label="Controles de presentación">
+        <div>
+          <p class="eyebrow">Controles</p>
+          <h2 class="controls__title">Transiciones rápidas entre secciones</h2>
+        </div>
+
+        <div class="controls__row">
+          <button class="control-button" type="button" data-action="previous">← Anterior</button>
+          <button class="control-button" type="button" data-action="next">Siguiente →</button>
+        </div>
+
+        <div class="section-links" data-section-links>
+          <p class="card__body">Las secciones se habilitan cuando se renderiza el contenido.</p>
+        </div>
+      </aside>
+
+      <noscript>
+        <div class="noscript">
+          <strong>Necesitás JavaScript para la experiencia completa.</strong>
+          <p>Sin JavaScript podés revisar directamente los archivos fuente:</p>
+          <ul>
+            <li><a href="./lunes.md">lunes.md</a></li>
+            <li><a href="./martes.md">martes.md</a></li>
+            <li><a href="./miercoles.md">miercoles.md</a></li>
+            <li><a href="./jueves.md">jueves.md</a></li>
+            <li><a href="./viernes.md">viernes.md</a></li>
+          </ul>
+        </div>
+      </noscript>
+    </div>
+
+    <script type="module" src="./assets/js/content-loader.js"></script>
+    <script type="module" src="./assets/js/presentation.js"></script>
+  </body>
+  </html>
