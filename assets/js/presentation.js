@@ -2,7 +2,6 @@ const progressBar = document.querySelector('[data-progress-bar]');
 const currentLabel = document.querySelector('[data-current-label]');
 const previousButton = document.querySelector('[data-action="previous"]');
 const nextButton = document.querySelector('[data-action="next"]');
-const sectionLinksHost = document.querySelector('[data-section-links]');
 
 let slides = [];
 let activeIndex = 0;
@@ -39,18 +38,6 @@ function setActiveSlide(index) {
 
   if (previousButton) previousButton.disabled = activeIndex === 0;
   if (nextButton) nextButton.disabled = activeIndex === slides.length - 1;
-
-  renderSectionLinks(current);
-}
-
-function renderSectionLinks(slide) {
-  if (!sectionLinksHost) return;
-  const sectionAnchors = [...slide.querySelectorAll('.section-link')]
-    .slice(0, 4)
-    .map((link) => `<a class="section-link" href="${link.getAttribute('href')}" data-target-id="${link.dataset.targetId}"><span>${link.querySelector('span')?.textContent || 'Sección'}</span><span>Ir</span></a>`)
-    .join('');
-
-  sectionLinksHost.innerHTML = sectionAnchors || '<p class="card__body">Usá la navegación por días para avanzar.</p>';
 }
 
 function bindGlobalActions() {

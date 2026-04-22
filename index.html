@@ -25,6 +25,10 @@
             <div class="progress__bar" data-progress-bar></div>
           </div>
           <span class="status-copy">Vista activa: <strong data-current-label>Intro</strong></span>
+          <div class="topbar__actions" aria-label="Navegación secuencial">
+            <button class="control-button control-button--inline" type="button" data-action="previous">← Anterior</button>
+            <button class="control-button control-button--inline" type="button" data-action="next">Siguiente →</button>
+          </div>
         </div>
       </header>
 
@@ -41,22 +45,6 @@
           </article>
         </section>
       </main>
-
-      <aside class="controls" aria-label="Controles de presentación">
-        <div>
-          <p class="eyebrow">Controles</p>
-          <h2 class="controls__title">Transiciones rápidas entre secciones</h2>
-        </div>
-
-        <div class="controls__row">
-          <button class="control-button" type="button" data-action="previous">← Anterior</button>
-          <button class="control-button" type="button" data-action="next">Siguiente →</button>
-        </div>
-
-        <div class="section-links" data-section-links>
-          <p class="card__body">Las secciones se habilitan cuando se renderiza el contenido.</p>
-        </div>
-      </aside>
 
       <noscript>
         <div class="noscript">

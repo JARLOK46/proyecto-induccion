@@ -423,6 +423,10 @@ function renderDay(dayData, index) {
     <section class="slide" id="slide-${dayData.slug}" data-slide data-day="${dayData.slug}" data-index="${index + 1}" data-state="inactive">
       <div class="slide__inner">
         <header class="slide__header">
+          <div class="slide__marker">
+            <span class="slide__marker-step">Jornada ${String(index + 1).padStart(2, '0')}</span>
+            <span class="slide__marker-line" aria-hidden="true"></span>
+          </div>
           <span class="eyebrow">Semana de inducción · ${dayData.label}</span>
           <div class="slide__header-row">
             <div>
@@ -454,6 +458,11 @@ function renderHero(days) {
         <div class="hero__layout">
           <div class="slide__header">
             <span class="eyebrow">Inducción SENA · Experiencia semanal</span>
+            <div class="hero__band" aria-label="Principios de la experiencia">
+              <span class="hero__band-item">Recorrido semanal</span>
+              <span class="hero__band-item">Fuente canónica</span>
+              <span class="hero__band-item">Énfasis institucional</span>
+            </div>
             <h1 class="hero__title">Una semana, cinco jornadas, un relato continuo.</h1>
             <p class="hero__lead">Esta landing toma los Markdown canónicos como fuente de verdad y los convierte en una experiencia tipo presentación: navegación rápida, transiciones fluidas y estados pendientes visibles cuando todavía falta información.</p>
             <div class="hero-actions">
@@ -498,7 +507,7 @@ function renderDayNav(days) {
             <span class="day-pill__label">${day.label}</span>
             <span class="day-pill__title">${escapeHtml(day.title)}</span>
           </span>
-          <span class="badge ${day.isPending ? 'badge--pending' : 'badge--available'}">${day.isPending ? 'Pending' : 'OK'}</span>
+          <span class="badge ${day.isPending ? 'badge--pending' : 'badge--available'}">${day.isPending ? 'Pendiente' : 'Activo'}</span>
         </button>
       `,
     )
