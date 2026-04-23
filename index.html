@@ -14,35 +14,40 @@
     <div class="page-shell">
       <div class="ambient-orb" aria-hidden="true"></div>
 
-      <header class="topbar">
-        <div class="brand">
-          <span class="brand__kicker">Ruta semanal de inducción</span>
-          <strong class="brand__title">SENA · presentación navegable</strong>
-        </div>
-
-        <div class="topbar__status" aria-label="Estado de avance por la presentación">
-          <div class="progress" aria-hidden="true">
-            <div class="progress__bar" data-progress-bar></div>
-          </div>
-          <span class="status-copy">Vista activa: <strong data-current-label>Intro</strong></span>
-          <div class="topbar__actions" aria-label="Navegación secuencial">
-            <button class="control-button control-button--inline" type="button" data-action="previous">← Anterior</button>
-            <button class="control-button control-button--inline" type="button" data-action="next">Siguiente →</button>
-          </div>
-        </div>
-      </header>
-
       <main class="viewport">
-        <aside class="day-rail" aria-label="Navegación por días">
-          <p class="day-rail__title">Saltá por día sin perder el hilo semanal.</p>
+        <aside class="day-rail" aria-label="Ruta semanal por jornadas">
+          <span class="day-rail__eyebrow">Jornadas</span>
           <nav class="day-nav" data-day-nav></nav>
         </aside>
 
         <section class="slides" data-slides-track>
           <article class="loading-state" data-loading>
             <strong>Cargando la semana de inducción...</strong>
-            <p>Si abrís esto como sitio estático, los Markdown del proyecto se transforman en una experiencia tipo presentación sin duplicar contenido.</p>
+            <p>Si abrís esto como sitio estático, los Markdown del proyecto se transforman en jornadas paginadas tipo deck, sin depender del scroll largo para navegar.</p>
           </article>
+        </section>
+
+        <section class="deck-dock" aria-label="Estado y navegación de la presentación" aria-live="polite">
+          <div class="deck-dock__meta">
+            <strong class="deck-dock__day" data-rail-current-label>Lunes</strong>
+            <div class="deck-dock__labels">
+              <strong class="deck-dock__title" data-current-label>Resumen</strong>
+              <span class="status-copy">Jornada <strong data-current-day-progress>1/5</strong> · Página <strong data-current-page-progress>1/1</strong></span>
+            </div>
+          </div>
+
+          <div class="deck-dock__status" aria-label="Estado de avance por la presentación">
+            <div class="progress" aria-hidden="true">
+              <div class="progress__bar" data-progress-bar></div>
+            </div>
+          </div>
+
+          <div class="page-stepper" data-page-stepper aria-label="Páginas internas de la jornada activa"></div>
+
+          <div class="deck-dock__actions" aria-label="Navegación secuencial">
+            <button class="control-button control-button--inline" type="button" data-action="previous" aria-label="Página o jornada anterior">←</button>
+            <button class="control-button control-button--inline" type="button" data-action="next" aria-label="Página o jornada siguiente">→</button>
+          </div>
         </section>
       </main>
 

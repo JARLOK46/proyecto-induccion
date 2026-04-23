@@ -1,72 +1,158 @@
 const progressBar = document.querySelector('[data-progress-bar]');
 const currentLabel = document.querySelector('[data-current-label]');
+const railCurrentLabel = document.querySelector('[data-rail-current-label]');
+const railCurrentCopy = document.querySelector('[data-rail-current-copy]');
+const currentDayProgress = document.querySelector('[data-current-day-progress]');
+const currentPageProgress = document.querySelector('[data-current-page-progress]');
+const pageStepper = document.querySelector('[data-page-stepper]');
 const previousButton = document.querySelector('[data-action="previous"]');
 const nextButton = document.querySelector('[data-action="next"]');
 
-let slides = [];
-let activeIndex = 0;
+let days = [];
+let deckPages = [];
+let state = { dayIndex: 0, pageIndex: 0 };
+let interactionsBound = false;
 
-function scrollToElement(targetId) {
-  const element = document.getElementById(targetId);
-  if (!element) return;
-  element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+function clampState(dayIndex, pageIndex) {
+  const safeDayIndex = Math.max(0, Math.min(dayIndex, days.length - 1));
+  const dayPages = days[safeDayIndex]?.pages || [];
+  const safePageIndex = Math.max(0, Math.min(pageIndex, Math.max(dayPages.length - 1, 0)));
+  return { dayIndex: safeDayIndex, pageIndex: safePageIndex };
 }
 
-function setActiveSlide(index) {
-  if (!slides.length) return;
-  activeIndex = Math.max(0, Math.min(index, slides.length - 1));
+function getFlatIndex(dayIndex, pageIndex) {
+  return days.slice(0, dayIndex).reduce((total, day) => total + day.pages.length, 0) + pageIndex;
+}
 
-  slides.forEach((slide, slideIndex) => {
-    slide.dataset.state = slideIndex === activeIndex ? 'active' : 'inactive';
-  });
-
-  const current = slides[activeIndex];
-  const isHero = current.dataset.day === 'hero';
-  const currentDay = isHero ? 'Introducción' : current.dataset.day;
-  if (currentLabel) {
-    currentLabel.textContent = isHero ? 'Intro' : currentDay.charAt(0).toUpperCase() + currentDay.slice(1);
+function renderPageStepper(dayIndex, pageIndex) {
+  if (!pageStepper) return;
+  const day = days[dayIndex];
+  if (!day) {
+    pageStepper.innerHTML = '';
+    return;
   }
 
+  pageStepper.innerHTML = day.pages
+    .map(
+      (page, index) => `
+        <button
+          class="page-stepper__button ${index === pageIndex ? 'is-active' : ''}"
+          type="button"
+          data-page-jump="${index}"
+          aria-current="${index === pageIndex ? 'true' : 'false'}"
+          aria-label="Ir a la página ${index + 1}: ${page.title}"
+          title="${page.title}"
+        >
+          <span class="page-stepper__index">${String(index + 1).padStart(2, '0')}</span>
+        </button>
+      `,
+    )
+    .join('');
+}
+
+function revealActiveControl(selector) {
+  const activeControl = document.querySelector(selector);
+  activeControl?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+function updateRail(dayIndex, pageIndex) {
+  const day = days[dayIndex];
+  const page = day?.pages?.[pageIndex];
+  if (!day || !page) return;
+
+  if (currentLabel) currentLabel.textContent = page.title;
+  if (railCurrentLabel) railCurrentLabel.textContent = day.label;
+  if (railCurrentCopy) railCurrentCopy.textContent = page.summary || day.shortSummary;
+  if (currentDayProgress) currentDayProgress.textContent = `${dayIndex + 1}/${days.length}`;
+  if (currentPageProgress) currentPageProgress.textContent = `${pageIndex + 1}/${day.pages.length}`;
+
+  const totalDeckPages = deckPages.length;
+  const flatIndex = getFlatIndex(dayIndex, pageIndex);
   if (progressBar) {
-    const progress = slides.length === 1 ? 100 : (activeIndex / (slides.length - 1)) * 100;
+    const progress = totalDeckPages <= 1 ? 100 : (flatIndex / (totalDeckPages - 1)) * 100;
     progressBar.style.width = `${progress}%`;
   }
 
   document.querySelectorAll('[data-day-link]').forEach((button) => {
-    button.classList.toggle('is-active', button.dataset.dayLink === current.dataset.day);
+    const isActive = Number(button.dataset.dayIndex) === dayIndex;
+    button.classList.toggle('is-active', isActive);
+    button.setAttribute('aria-current', isActive ? 'true' : 'false');
   });
 
-  if (previousButton) previousButton.disabled = activeIndex === 0;
-  if (nextButton) nextButton.disabled = activeIndex === slides.length - 1;
+  renderPageStepper(dayIndex, pageIndex);
+  revealActiveControl('[data-day-link].is-active');
+  revealActiveControl('.page-stepper__button.is-active');
+
+  if (previousButton) previousButton.disabled = flatIndex === 0;
+  if (nextButton) nextButton.disabled = flatIndex === totalDeckPages - 1;
 }
 
-function bindGlobalActions() {
-  document.addEventListener('click', (event) => {
-    const jumpButton = event.target.closest('[data-jump-to]');
-    if (jumpButton) {
-      event.preventDefault();
-      scrollToElement(jumpButton.dataset.jumpTo);
+function setActiveDeckPosition(dayIndex, pageIndex) {
+  if (!days.length || !deckPages.length) return;
+
+  state = clampState(dayIndex, pageIndex);
+
+  deckPages.forEach((page) => {
+    const isActive = Number(page.dataset.dayIndex) === state.dayIndex && Number(page.dataset.pageIndex) === state.pageIndex;
+    page.dataset.state = isActive ? 'active' : 'inactive';
+    page.hidden = !isActive;
+    page.setAttribute('aria-hidden', String(!isActive));
+    page.inert = !isActive;
+  });
+
+  updateRail(state.dayIndex, state.pageIndex);
+}
+
+function moveSequential(direction) {
+  if (!days.length) return;
+
+  const currentDay = days[state.dayIndex];
+  if (!currentDay) return;
+
+  if (direction > 0) {
+    if (state.pageIndex < currentDay.pages.length - 1) {
+      setActiveDeckPosition(state.dayIndex, state.pageIndex + 1);
       return;
     }
 
-    const sectionLink = event.target.closest('[data-target-id]');
-    if (sectionLink) {
+    if (state.dayIndex < days.length - 1) {
+      setActiveDeckPosition(state.dayIndex + 1, 0);
+    }
+    return;
+  }
+
+  if (state.pageIndex > 0) {
+    setActiveDeckPosition(state.dayIndex, state.pageIndex - 1);
+    return;
+  }
+
+  if (state.dayIndex > 0) {
+    const previousDay = days[state.dayIndex - 1];
+    setActiveDeckPosition(state.dayIndex - 1, previousDay.pages.length - 1);
+  }
+}
+
+function bindGlobalActions() {
+  if (interactionsBound) return;
+  interactionsBound = true;
+
+  document.addEventListener('click', (event) => {
+    const dayButton = event.target.closest('[data-day-link]');
+    if (dayButton) {
       event.preventDefault();
-      scrollToElement(sectionLink.dataset.targetId);
+      setActiveDeckPosition(Number(dayButton.dataset.dayIndex), 0);
+      return;
+    }
+
+    const pageButton = event.target.closest('[data-page-jump]');
+    if (pageButton) {
+      event.preventDefault();
+      setActiveDeckPosition(state.dayIndex, Number(pageButton.dataset.pageJump));
     }
   });
 
-  previousButton?.addEventListener('click', () => {
-    if (activeIndex > 0) {
-      scrollToElement(slides[activeIndex - 1].id);
-    }
-  });
-
-  nextButton?.addEventListener('click', () => {
-    if (activeIndex < slides.length - 1) {
-      scrollToElement(slides[activeIndex + 1].id);
-    }
-  });
+  previousButton?.addEventListener('click', () => moveSequential(-1));
+  nextButton?.addEventListener('click', () => moveSequential(1));
 
   document.addEventListener('keydown', (event) => {
     const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
@@ -74,53 +160,31 @@ function bindGlobalActions() {
 
     if (event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === 'ArrowRight') {
       event.preventDefault();
-      nextButton?.click();
+      moveSequential(1);
     }
 
     if (event.key === 'ArrowUp' || event.key === 'PageUp' || event.key === 'ArrowLeft') {
       event.preventDefault();
-      previousButton?.click();
+      moveSequential(-1);
     }
 
     if (event.key === 'Home') {
       event.preventDefault();
-      scrollToElement(slides[0]?.id);
+      setActiveDeckPosition(0, 0);
     }
 
     if (event.key === 'End') {
       event.preventDefault();
-      scrollToElement(slides[slides.length - 1]?.id);
+      const lastDayIndex = days.length - 1;
+      const lastPageIndex = days[lastDayIndex].pages.length - 1;
+      setActiveDeckPosition(lastDayIndex, lastPageIndex);
     }
   });
 }
 
-function observeSlides() {
-  if (!('IntersectionObserver' in window)) {
-    setActiveSlide(0);
-    return;
-  }
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((left, right) => right.intersectionRatio - left.intersectionRatio)[0];
-
-      if (!visible) return;
-      const nextIndex = slides.findIndex((slide) => slide === visible.target);
-      if (nextIndex >= 0) setActiveSlide(nextIndex);
-    },
-    {
-      threshold: [0.35, 0.6, 0.85],
-    },
-  );
-
-  slides.forEach((slide) => observer.observe(slide));
-}
-
-document.addEventListener('landing:rendered', () => {
-  slides = [...document.querySelectorAll('[data-slide]')];
+document.addEventListener('landing:rendered', (event) => {
+  days = event.detail.days || [];
+  deckPages = [...document.querySelectorAll('[data-page]')];
   bindGlobalActions();
-  observeSlides();
-  setActiveSlide(0);
+  setActiveDeckPosition(0, 0);
 });

@@ -23,17 +23,54 @@ const BASE_SECTION_ORDER = [
   'Assets pendientes',
 ];
 
+const DETAIL_SECTION_CONFIG = [
+  {
+    heading: 'Desarrollo de la jornada',
+    kind: 'detail',
+    kicker: 'Recorrido detallado',
+    title: 'Desarrollo de la jornada',
+  },
+  {
+    heading: 'Bloque institucional SENA',
+    kind: 'detail',
+    kicker: 'Bloque institucional',
+    title: 'Bloque institucional SENA',
+  },
+  {
+    heading: 'Derechos, deberes y faltas del aprendiz',
+    kind: 'detail',
+    kicker: 'Marco del aprendiz',
+    title: 'Derechos, deberes y faltas del aprendiz',
+  },
+  {
+    heading: 'Bloque de exposición',
+    kind: 'detail',
+    kicker: 'Cierre de la jornada',
+    title: 'Bloque de exposición',
+    forceForSlug: 'viernes',
+    fallbackRaw: 'Espacio reservado para el cierre y la exposición final. Contenido pendiente.',
+  },
+  {
+    heading: 'Otros temas mencionados en la jornada',
+    kind: 'detail',
+    kicker: 'Temas complementarios',
+    title: 'Otros temas mencionados en la jornada',
+  },
+];
+
 const DAY_NOTES = {
   jueves: 'Día todavía sin archivo desarrollado. La landing preserva el espacio para completarlo sin inventar contenido.',
   viernes: 'El cierre semanal reserva el bloque de exposición aunque la fuente Markdown siga vacía.',
 };
+
+const PRESENTATION_PRIORITIES = new Set(['lunes', 'martes', 'miercoles']);
 
 const slidesTrack = document.querySelector('[data-slides-track]');
 const dayNav = document.querySelector('[data-day-nav]');
 const loadingState = document.querySelector('[data-loading]');
 
 function escapeHtml(value = '') {
-  return value
+  return String(value)
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -148,6 +185,25 @@ function stripMarkdown(markdown = '') {
     .trim();
 }
 
+function createShortSummary(value = '', maxLength = 64) {
+  const normalized = stripMarkdown(value);
+  if (!normalized) return 'Contenido pendiente de confirmación.';
+  if (normalized.length <= maxLength) return normalized;
+
+  const clipped = normalized.slice(0, maxLength + 1);
+  const safeBreak = clipped.lastIndexOf(' ');
+  const compact = (safeBreak > 42 ? clipped.slice(0, safeBreak) : clipped.slice(0, maxLength)).trim();
+  return `${compact}…`;
+}
+
+function resolveDayStatus(isPending) {
+  return isPending ? 'pending' : 'available';
+}
+
+function getStatusLabel(status) {
+  return status === 'pending' ? 'Pendiente' : 'Disponible';
+}
+
 function parseSections(markdown = '') {
   const normalized = markdown.replace(/\r\n/g, '\n');
   const lines = normalized.split('\n');
@@ -194,6 +250,24 @@ function getSectionByHeading(sections, heading) {
   return sections.find((section) => section.heading.toLowerCase() === heading.toLowerCase());
 }
 
+function createSection(heading, raw = 'Contenido pendiente.') {
+  return {
+    heading,
+    anchor: slugify(heading),
+    raw,
+    html: renderMarkdown(raw),
+    text: stripMarkdown(raw),
+  };
+}
+
+function createBulletedRaw(items = []) {
+  return items.filter(Boolean).map((item) => `- ${item}`).join('\n');
+}
+
+function createParagraphRaw(paragraphs = []) {
+  return paragraphs.filter(Boolean).join('\n\n');
+}
+
 function extractAssets(section) {
   if (!section?.raw) return [];
   const lines = section.raw.replace(/\r\n/g, '\n').split('\n');
@@ -202,7 +276,7 @@ function extractAssets(section) {
 
   lines.forEach((line) => {
     const trimmed = line.trim();
-    const titleMatch = trimmed.match(/^-\s+\*\*(.+?)\*\*$/);
+    const titleMatch = trimmed.match(/^\-\s+\*\*(.+?)\*\*$/);
     if (titleMatch) {
       if (current) items.push(current);
       current = {
@@ -218,7 +292,7 @@ function extractAssets(section) {
 
     if (!current) return;
 
-    const propertyMatch = trimmed.match(/^-\s+([^:]+):\s*(.+)$/);
+    const propertyMatch = trimmed.match(/^\-\s+([^:]+):\s*(.+)$/);
     if (!propertyMatch) return;
 
     const key = slugify(propertyMatch[1]);
@@ -238,20 +312,8 @@ function extractAssets(section) {
 function buildFallbackSections(day) {
   const pendingText = DAY_NOTES[day.slug] || 'Contenido pendiente de confirmación por el equipo de inducción.';
   return [
-    {
-      heading: 'Resumen',
-      anchor: 'resumen',
-      raw: pendingText,
-      html: `<p>${escapeHtml(pendingText)}</p>`,
-      text: pendingText,
-    },
-    {
-      heading: day.slug === 'viernes' ? 'Bloque de exposición' : 'Agenda',
-      anchor: day.slug === 'viernes' ? 'bloque-de-exposicion' : 'agenda',
-      raw: 'Contenido pendiente.',
-      html: '<p>Contenido pendiente.</p>',
-      text: 'Contenido pendiente.',
-    },
+    createSection('Resumen', pendingText),
+    createSection(day.slug === 'viernes' ? 'Bloque de exposición' : 'Agenda', 'Contenido pendiente.'),
   ];
 }
 
@@ -263,6 +325,566 @@ function sortSections(sections) {
     const normalizedRight = rightIndex === -1 ? 999 : rightIndex;
     return normalizedLeft - normalizedRight;
   });
+}
+
+function resolveBlockDensity(text = '') {
+  const normalized = stripMarkdown(text);
+  if (normalized.length > 620) return 'dense';
+  if (normalized.length > 260) return 'regular';
+  return 'compact';
+}
+
+function densityScore(density) {
+  if (density === 'dense') return 3;
+  if (density === 'regular') return 2;
+  return 1;
+}
+
+function buildBlock(sectionLike, options = {}) {
+  const raw = options.raw ?? sectionLike?.raw ?? '';
+  const text = options.text ?? sectionLike?.text ?? stripMarkdown(raw);
+  const html = options.html ?? sectionLike?.html ?? renderMarkdown(raw);
+  const heading = options.heading ?? sectionLike?.heading ?? 'Contenido';
+  const density = options.density ?? resolveBlockDensity(text || raw);
+
+  return {
+    id: options.id || slugify(`${heading}-${createShortSummary(text || heading, 32)}`),
+    heading,
+    html,
+    text,
+    density,
+    tone: options.tone || 'default',
+  };
+}
+
+function splitSectionIntoBlocks(section) {
+  if (!section?.raw) return [];
+
+  const lines = section.raw.replace(/\r\n/g, '\n').split('\n');
+  const introLines = [];
+  const blocks = [];
+  let current = null;
+
+  const pushCurrent = () => {
+    if (!current) return;
+    const raw = current.lines.join('\n').trim();
+    if (!raw) return;
+    blocks.push(
+      buildBlock(section, {
+        heading: current.heading,
+        raw,
+        text: stripMarkdown(raw),
+        html: renderMarkdown(raw),
+      }),
+    );
+  };
+
+  lines.forEach((line) => {
+    if (/^###\s+/.test(line.trim())) {
+      pushCurrent();
+      current = {
+        heading: line.replace(/^###\s+/, '').trim(),
+        lines: [],
+      };
+      return;
+    }
+
+    if (current) {
+      current.lines.push(line);
+      return;
+    }
+
+    introLines.push(line);
+  });
+
+  pushCurrent();
+
+  const introRaw = introLines.join('\n').trim();
+  if (blocks.length) {
+    if (introRaw) {
+      blocks.unshift(
+        buildBlock(section, {
+          heading: `${section.heading} · contexto`,
+          raw: introRaw,
+          text: stripMarkdown(introRaw),
+          html: renderMarkdown(introRaw),
+          density: 'compact',
+          tone: 'context',
+        }),
+      );
+    }
+    return blocks;
+  }
+
+  return [buildBlock(section)];
+}
+
+function chunkBlocks(blocks, pageKind) {
+  const pageBudget = pageKind === 'cover' || pageKind === 'core' ? 4 : 3;
+  const pages = [];
+  let current = [];
+  let score = 0;
+
+  blocks.forEach((block) => {
+    const nextScore = densityScore(block.density);
+    const mustSplit = current.length >= 2 || score + nextScore > pageBudget || (block.density === 'dense' && current.length);
+
+    if (mustSplit) {
+      pages.push(current);
+      current = [block];
+      score = nextScore;
+      return;
+    }
+
+    current.push(block);
+    score += nextScore;
+  });
+
+  if (current.length) pages.push(current);
+  return pages.filter((page) => page.length);
+}
+
+function buildAssetsMarkup(dayData) {
+  if (!dayData.assets.length) {
+    return '<article class="asset-card"><strong>Sin assets cargados</strong><span>La jornada todavía no tiene fotos aprobadas.</span></article>';
+  }
+
+  return dayData.assets
+    .map(
+      (asset) => `
+        <article class="asset-card">
+          <span class="asset-chip">${escapeHtml(asset.status)}</span>
+          <strong>${escapeHtml(asset.title)}</strong>
+          <span>${escapeHtml(asset.description)}</span>
+          <span>Fuente: ${escapeHtml(asset.source)}</span>
+          <span>Permiso: ${escapeHtml(asset.permission)}</span>
+          ${asset.note ? `<span>Nota: ${escapeHtml(asset.note)}</span>` : ''}
+        </article>
+      `,
+    )
+    .join('');
+}
+
+function buildPage(dayData, definition) {
+  return {
+    ...definition,
+    summary: definition.summary || createShortSummary(definition.blocks.map((block) => block.text).join(' '), 110),
+  };
+}
+
+function buildCuratedPresentationPages(dayData, definitionFactory) {
+  const definitions = definitionFactory(dayData).filter(Boolean);
+  return definitions.map((definition) => buildPage(dayData, definition));
+}
+
+function buildMondayPages(dayData) {
+  return buildCuratedPresentationPages(dayData, () => [
+    {
+      kind: 'cover',
+      kicker: 'Jornada 01',
+      title: 'Bienestar, apoyos y reglas para arrancar',
+      summary: 'El lunes arma el mapa de entrada del aprendiz: bienestar, apoyos concretos, preparación para la vida laboral y primeras reglas institucionales.',
+      blocks: [
+        buildBlock(createSection('Panorama del día', createBulletedRaw([
+          'Bienestar al aprendiz y salud mental como punto de partida.',
+          'Actividades recreativas y desarrollo integral durante la formación.',
+          'Inducción a la vida laboral, proyecto de vida y pruebas de trabajo.',
+          'Socialización de derechos, deberes y estado de verificación de faltas.',
+        ])), { heading: 'Panorama del día', density: 'regular', tone: 'context' }),
+        buildBlock(createSection('Qué se llevó el grupo', createBulletedRaw([
+          'Se explicaron apoyos institucionales disponibles para aprendices.',
+          'Se presentó el beneficio de póliza de accidentes con coberturas y exclusiones.',
+          'Quedó asignada la tarea sobre fundamentos de la formación integral y estructura organizacional.',
+        ])), { heading: 'Qué se llevó el grupo', density: 'regular' }),
+      ],
+    },
+    {
+      kind: 'core',
+      kicker: 'Bienestar en concreto',
+      title: 'El bienestar se explicó como sostén real de la trayectoria',
+      summary: 'El foco no fue abstracto: bienestar apareció como apoyo emocional, talleres para desarrollo integral y condiciones para sostener la formación.',
+      blocks: [
+        buildBlock(createSection('Bienestar integral', createBulletedRaw([
+          'Se socializaron apoyos para salud mental de los estudiantes.',
+          'También se mencionaron emprendimiento y desarrollo integral del aprendiz.',
+          'Hubo espacios previstos para música y otros talleres lúdicos y recreativos.',
+        ])), { heading: 'Bienestar integral', density: 'regular' }),
+        buildBlock(createSection('Qué problema intenta resolver este bloque', createParagraphRaw([
+          'La jornada presentó bienestar como una capa que acompaña al aprendiz más allá de la clase: salud mental, actividades formativas y espacios de integración.',
+          'Eso ordena el tono de la semana: primero sostener a la persona, después exigirle recorrido institucional y normativo.',
+        ])), { heading: 'Qué problema intenta resolver este bloque', density: 'regular', tone: 'context' }),
+      ],
+    },
+    {
+      kind: 'core',
+      kicker: 'Apoyos institucionales',
+      title: 'Los apoyos nombrados fueron concretos, no genéricos',
+      summary: 'El lunes dejó explícito qué ayudas sí fueron mencionadas, útil para cualquier aprendiz que necesite ubicar acompañamiento material o académico.',
+      blocks: [
+        buildBlock(createSection('Apoyos que sí quedaron nombrados', createBulletedRaw([
+          'Apoyo de transporte.',
+          'Apoyo de alimentos.',
+          'Apoyo de sostenimiento.',
+          'Monitorías de excelencia.',
+          'Apoyo de medios tecnológicos.',
+        ])), { heading: 'Apoyos que sí quedaron nombrados', density: 'regular' }),
+        buildBlock(createSection('Lectura útil para el aprendiz', createParagraphRaw([
+          'No se listaron como catálogo decorativo: son apoyos que pueden afectar permanencia, acceso y rendimiento durante la formación.',
+          'Por eso esta slide los separa del resto del relato y los deja visibles como información accionable.',
+        ])), { heading: 'Lectura útil para el aprendiz', density: 'regular', tone: 'context' }),
+      ],
+    },
+    {
+      kind: 'detail',
+      kicker: 'Puente a la vida laboral',
+      title: 'Proyecto de vida, empleabilidad y tarea asignada',
+      summary: 'La jornada no quedó sólo en bienestar: también abrió un frente de preparación laboral y dejó trabajo para seguir comprendiendo la institución.',
+      blocks: [
+        buildBlock(createSection('Inducción a la vida laboral', createParagraphRaw([
+          'Se presentaron inducciones relacionadas con el desarrollo del proyecto de vida, pruebas de trabajo y otros temas vinculados con la preparación para la vida laboral.',
+          'Quedó pendiente de aclaración el alcance exacto de “pruebas de trabajo y más”.',
+        ])), { heading: 'Inducción a la vida laboral', density: 'regular' }),
+        buildBlock(createSection('Tarea que baja a tierra la inducción', createBulletedRaw([
+          'Fundamentos de la formación integral.',
+          'Estructura organizacional.',
+          'La tarea funciona como puente entre el lunes y la comprensión institucional que luego aparece con más fuerza el miércoles.',
+        ])), { heading: 'Tarea que baja a tierra la inducción', density: 'regular' }),
+      ],
+    },
+    {
+      kind: 'detail',
+      kicker: 'Cobertura y límites',
+      title: 'Póliza de accidentes: qué cubre y qué NO cubre',
+      summary: 'La póliza apareció como información práctica: se explicaron coberturas, exclusiones y contactos compartidos durante la jornada.',
+      blocks: [
+        buildBlock(createSection('Póliza de accidentes: lectura ejecutiva', createBulletedRaw([
+          'La póliza cubre a aprendices del SENA durante la vigencia del seguro cuando sufran lesión orgánica o perturbación funcional causada por accidente.',
+          'Entre las coberturas mencionadas estuvieron muerte accidental, incapacidad total permanente, desmembración accidental y auxilio funerario.',
+          'Entre las exclusiones nombradas estuvieron enfermedades congénitas, actos por fuera de la ley, deportes de alto riesgo, alcohol o drogas, cirugías estéticas y accidentes de tránsito.',
+        ])), { heading: 'Póliza de accidentes: lectura ejecutiva', density: 'regular' }),
+        buildBlock(createSection('Dato operativo que quedó registrado', createBulletedRaw([
+          'Se aclaró que el SENA no entrega medicamentos.',
+          'Quedaron compartidas dos referencias de contacto: `#881` y `6017443718`.',
+          'La presentación conserva estos datos como parte del registro de la jornada, no como reemplazo de una fuente formal adicional.',
+        ])), { heading: 'Dato operativo que quedó registrado', density: 'regular', tone: 'context' }),
+      ],
+    },
+    {
+      kind: 'support',
+      kicker: 'Reglas del aprendiz',
+      title: 'Derechos y deberes ya visibles; faltas todavía pendientes',
+      summary: 'El deck deja claro qué reglas sí están respaldadas por fuentes y qué parte normativa todavía no conviene afirmar sin verificación oficial.',
+      blocks: [
+        buildBlock(createSection('Derechos que sí aparecen respaldados', createBulletedRaw([
+          'Recibir formación profesional integral.',
+          'Acceder a recursos de formación y bienestar al aprendiz.',
+          'Recibir orientación académica y trato digno.',
+          'Contar con debido proceso y evaluación objetiva.',
+        ])), { heading: 'Derechos que sí aparecen respaldados', density: 'regular' }),
+        buildBlock(createSection('Deberes que sí quedaron explicitados', createBulletedRaw([
+          'Cumplir las actividades del proceso formativo.',
+          'Respetar a la comunidad educativa y los derechos de las demás personas.',
+          'Cuidar recursos institucionales y usar correctamente ambientes y equipos.',
+          'Conocer y asumir políticas institucionales y reglamento aplicable.',
+        ])), { heading: 'Deberes que sí quedaron explicitados', density: 'regular' }),
+        buildBlock(createSection('Límite editorial importante', createParagraphRaw([
+          'El listado definitivo de faltas sigue pendiente de verificación oficial visible.',
+          'Hasta contar con esa fuente, la presentación no inventa ni endurece redacción normativa.',
+        ])), { heading: 'Límite editorial importante', density: 'compact', tone: 'context' }),
+      ],
+    },
+  ]);
+}
+
+function buildTuesdayPages(dayData) {
+  return buildCuratedPresentationPages(dayData, () => [
+    {
+      kind: 'cover',
+      kicker: 'Jornada 02',
+      title: 'Reglamento del aprendiz y marco formativo',
+      summary: 'El martes concentró menos temas, pero más marco: reglamento, referencia al Acuerdo 069 de 2004 y una definición breve de formación profesional integral.',
+      blocks: [
+        buildBlock(createSection('Qué sí se trabajó', createBulletedRaw([
+          'Revisión del reglamento del aprendiz como eje principal.',
+          'Referencia al Acuerdo 069 de 2004.',
+          'Definición de formación profesional integral.',
+          'Ampliación de temas relacionados con derechos del aprendiz.',
+        ])), { heading: 'Qué sí se trabajó', density: 'regular', tone: 'context' }),
+        buildBlock(createSection('Decisión editorial del archivo', createParagraphRaw([
+          'El desarrollo detallado de derechos, deberes y faltas queda consolidado en lunes para evitar duplicación y desorden entre archivos.',
+          'Eso deja a martes como una slide de marco conceptual, no como repetición del lunes.',
+        ])), { heading: 'Decisión editorial del archivo', density: 'regular' }),
+      ],
+    },
+    {
+      kind: 'core',
+      kicker: 'Marco regulatorio',
+      title: 'El centro del martes fue ordenar el reglamento',
+      summary: 'La jornada ubicó al reglamento del aprendiz como eje y dejó la referencia al Acuerdo 069 de 2004 sin sobreprometer alcances no confirmados.',
+      blocks: [
+        buildBlock(createSection('Reglamento del aprendiz', createParagraphRaw([
+          'Durante la jornada se trabajó el reglamento del aprendiz como uno de los ejes principales del martes.',
+          'La slide lo muestra como marco de referencia del día, no como compilado completo de artículos o sanciones.',
+        ])), { heading: 'Reglamento del aprendiz', density: 'regular' }),
+        buildBlock(createSection('Acuerdo 069 de 2004', createParagraphRaw([
+          'También se hizo referencia al Acuerdo 069 de 2004 dentro del desarrollo de la sesión.',
+          'No se incorpora redacción jurídica ni alcance detallado porque esa formulación exacta no fue aportada en la información recibida.',
+        ])), { heading: 'Acuerdo 069 de 2004', density: 'regular', tone: 'context' }),
+      ],
+    },
+    {
+      kind: 'detail',
+      kicker: 'Punto clave del día',
+      title: 'La idea que quedó explícita: formar en ser, aprender y hacer',
+      summary: 'La jornada aterrizó la formación profesional integral en una tríada concreta y evitó meter conceptos que el usuario aclaró que NO se vieron ese día.',
+      blocks: [
+        buildBlock(createSection('Definición revisada', createParagraphRaw([
+          'Se explicó la formación profesional integral como la formación de los aprendices en el ser, aprender y hacer.',
+        ])), { heading: 'Definición revisada', density: 'compact' }),
+        buildBlock(createSection('Relación con derechos del aprendiz', createParagraphRaw([
+          'En la jornada también se ampliaron temas sobre derechos del aprendiz.',
+          'Para mantener coherencia editorial entre los archivos de la semana, el desarrollo más amplio de derechos, deberes y faltas queda centralizado en `lunes.md`.',
+        ])), { heading: 'Relación con derechos del aprendiz', density: 'regular' }),
+        buildBlock(createSection('Limpieza de ruido', createBulletedRaw([
+          'Se retiraron “actores de la formación profesional”.',
+          'Se retiró “quién se considera aprendiz”.',
+          'La razón es simple: el usuario aclaró que esos puntos no fueron mencionados en la jornada del martes.',
+        ])), { heading: 'Limpieza de ruido', density: 'regular', tone: 'context' }),
+      ],
+    },
+    {
+      kind: 'support',
+      kicker: 'Pendientes reales',
+      title: 'Lo que todavía no conviene afirmar',
+      summary: 'El martes deja varios huecos documentales abiertos y la presentación los muestra como pendientes, no como certezas inventadas.',
+      blocks: [
+        buildBlock(createSection('Pendientes de ampliación o confirmación', createBulletedRaw([
+          'Precisar la formulación exacta con la que se trabajó el Acuerdo 069 de 2004.',
+          'Confirmar si se revisaron artículos, apartados o ejemplos concretos del reglamento del aprendiz.',
+          'Ampliar el contexto adicional con el que se explicó la formación profesional integral si aparecen apuntes o material de apoyo.',
+        ])), { heading: 'Pendientes de ampliación o confirmación', density: 'regular' }),
+        buildBlock(createSection('Criterio de esta presentación', createParagraphRaw([
+          'No se incorpora redacción jurídica ni alcance detallado del acuerdo porque esa formulación exacta no fue aportada en la información recibida.',
+          'La slide prioriza claridad sobre volumen y preserva lo no confirmado como pendiente.',
+        ])), { heading: 'Criterio de esta presentación', density: 'regular', tone: 'context' }),
+      ],
+    },
+  ]);
+}
+
+function buildWednesdayPages(dayData) {
+  return buildCuratedPresentationPages(dayData, () => [
+    {
+      kind: 'cover',
+      kicker: 'Jornada 03',
+      title: 'Conociendo al SENA desde su identidad institucional',
+      summary: 'El miércoles ordena lo esencial: qué es el SENA, cuál es su misión, cómo se organiza y qué plataformas o temas quedaron sólo mencionados.',
+      blocks: [
+        buildBlock(createSection('Panorama del día', createBulletedRaw([
+          'Qué es el SENA y cuál es su propósito.',
+          'Misión, visión y estructura organizacional.',
+          'Funciones principales y símbolos institucionales.',
+          'SENNOVA, SISGE y contrato de aprendizaje por SGVA como temas mencionados.',
+        ])), { heading: 'Panorama del día', density: 'regular', tone: 'context' }),
+        buildBlock(createSection('Idea fuerza', createParagraphRaw([
+          'Este día no gira sobre trámites aislados: construye contexto institucional para que el aprendiz entienda dónde está parado.',
+        ])), { heading: 'Idea fuerza', density: 'compact' }),
+      ],
+    },
+    {
+      kind: 'detail',
+      kicker: 'Base institucional',
+      title: 'Qué es el SENA y por qué existe',
+      summary: 'La presentación condensa la definición institucional y la conecta con la misión publicada por la entidad.',
+      blocks: [
+        buildBlock(createSection('Qué es el SENA', createParagraphRaw([
+          'El SENA es un establecimiento público del orden nacional, con personería jurídica, patrimonio propio e independiente y autonomía administrativa, adscrito al Ministerio del Trabajo.',
+          'Además, ofrece formación profesional integral gratuita para fortalecer el desarrollo social, económico y tecnológico del país.',
+        ])), { heading: 'Qué es el SENA', density: 'regular' }),
+        buildBlock(createSection('Misión en lectura rápida', createBulletedRaw([
+          'La misión se centra en invertir en el desarrollo social y técnico de los trabajadores mediante formación profesional integral.',
+          'La misión conecta formación con incorporación y desarrollo de personas en actividades productivas.',
+          'No presenta sólo clases: presenta una función pública orientada al desarrollo social, económico y tecnológico del país.',
+        ])), { heading: 'Misión en lectura rápida', density: 'regular' }),
+      ],
+    },
+    {
+      kind: 'detail',
+      kicker: 'Visión y organización',
+      title: 'Hacia dónde va el SENA y cómo se compone',
+      summary: 'La jornada aterrizó la visión institucional hacia 2026 y la estructura organizacional que sostiene ese alcance nacional.',
+      blocks: [
+        buildBlock(createSection('Visión institucional', createBulletedRaw([
+          'La visión institucional publicada por el SENA está proyectada hacia 2026.',
+          'Apunta a mantener a la entidad a la vanguardia de la cualificación del talento humano.',
+          'La articulación esperada incluye formación, empleo, emprendimiento y reconocimiento de aprendizajes previos.',
+        ])), { heading: 'Visión institucional', density: 'regular' }),
+        buildBlock(createSection('Estructura organizacional', createBulletedRaw([
+          'Consejo Directivo Nacional.',
+          'Dirección General.',
+          'Dependencias de apoyo y control.',
+          'Direcciones misionales, direcciones regionales y centros de formación profesional integral.',
+        ])), { heading: 'Estructura organizacional', density: 'regular' }),
+      ],
+    },
+    {
+      kind: 'detail',
+      kicker: 'Funciones visibles',
+      title: 'Funciones públicas y símbolos que hacen legible a la entidad',
+      summary: 'Además de la estructura, el miércoles dejó visibles funciones concretas del SENA y los símbolos institucionales verificados.',
+      blocks: [
+        buildBlock(createSection('Funciones y símbolos destacados', createBulletedRaw([
+          'Impulsar la formación profesional integral de los trabajadores.',
+          'Ejecutar programas según necesidades sociales y del sector productivo.',
+          'Administrar información relacionada con oferta y demanda laboral.',
+          'Los símbolos institucionales verificados incluyen escudo, bandera y logosímbolo.',
+        ])), { heading: 'Funciones y símbolos destacados', density: 'regular' }),
+        buildBlock(createSection('Por qué este bloque importa', createParagraphRaw([
+          'No alcanza con saber que el SENA existe: esta parte explica para qué sirve institucionalmente y qué elementos permiten reconocerlo dentro de su identidad pública.',
+        ])), { heading: 'Por qué este bloque importa', density: 'compact', tone: 'context' }),
+      ],
+    },
+    {
+      kind: 'support',
+      kicker: 'Temas abiertos',
+      title: 'Plataformas mencionadas y límites de lo confirmado',
+      summary: 'SENNOVA, SISGE y SGVA aparecieron en la jornada, pero el deck muestra explícitamente que todavía faltan alcances y flujos precisos.',
+      blocks: [
+        buildBlock(createSection('Temas mencionados durante el miércoles', createBulletedRaw([
+          'Se explicó cómo funciona la plataforma SENNOVA.',
+          'También se explicó cómo funciona la plataforma SISGE.',
+          'Se mencionó el contrato de aprendizaje como forma en que las empresas contactan a los aprendices por medio de SGVA.',
+        ])), { heading: 'Temas mencionados durante el miércoles', density: 'regular' }),
+        buildBlock(createSection('Lo pendiente sigue marcado como pendiente', createBulletedRaw([
+          'No se precisó qué módulo, flujo o uso concreto de SENNOVA y SISGE se explicó.',
+          'No se agregan condiciones, requisitos o etapas del contrato de aprendizaje sin respaldo.',
+          'Los temas de derechos, deberes y faltas del aprendiz siguen consolidados en lunes.',
+        ])), { heading: 'Lo pendiente sigue marcado como pendiente', density: 'regular', tone: 'context' }),
+      ],
+    },
+  ]);
+}
+
+function buildPriorityDayPages(dayData) {
+  if (dayData.slug === 'lunes') return buildMondayPages(dayData);
+  if (dayData.slug === 'martes') return buildTuesdayPages(dayData);
+  if (dayData.slug === 'miercoles') return buildWednesdayPages(dayData);
+  return null;
+}
+
+function buildGenericDayPages(dayData) {
+  const sections = dayData.sections;
+  const summarySection = getSectionByHeading(sections, 'Resumen') || createSection('Resumen', dayData.summary || DAY_NOTES[dayData.slug] || 'Contenido pendiente.');
+  const agendaSection =
+    getSectionByHeading(sections, 'Agenda') ||
+    (dayData.slug === 'viernes'
+      ? getSectionByHeading(sections, 'Bloque de exposición') || createSection('Bloque de exposición', 'Contenido pendiente.')
+      : createSection('Agenda', 'Contenido pendiente.'));
+  const themesSection = getSectionByHeading(sections, 'Temas');
+  const responsibleSection = getSectionByHeading(sections, 'Responsables');
+  const pendingSection = getSectionByHeading(sections, 'Pendientes de verificación') || getSectionByHeading(sections, 'Pendientes de ampliación o confirmación');
+  const remindersSection = getSectionByHeading(sections, 'Recordatorios');
+  const sourcesSection = getSectionByHeading(sections, 'Fuentes institucionales verificadas');
+
+  const pages = [];
+
+  pages.push(
+    buildPage(dayData, {
+      kind: 'cover',
+      kicker: `Jornada ${dayData.label}`,
+      title: dayData.title,
+      summary: createShortSummary(summarySection.text || dayData.summary, 110),
+      blocks: [buildBlock(summarySection, { heading: 'Resumen', density: 'regular' }), buildBlock(agendaSection, { heading: agendaSection.heading, density: 'regular' })],
+    }),
+  );
+
+  const coreBlocks = [themesSection, responsibleSection].filter(Boolean).map((section) => buildBlock(section));
+  if (coreBlocks.length) {
+    pages.push(
+      buildPage(dayData, {
+        kind: 'core',
+        kicker: 'Mapa de la jornada',
+        title: 'Temas y responsables',
+        summary: createShortSummary(coreBlocks.map((block) => block.text).join(' '), 110),
+        blocks: coreBlocks,
+      }),
+    );
+  }
+
+  DETAIL_SECTION_CONFIG.forEach((config) => {
+    const sourceSection = getSectionByHeading(sections, config.heading);
+    const shouldRender = Boolean(sourceSection) || config.forceForSlug === dayData.slug;
+    if (!shouldRender) return;
+
+    const section = sourceSection || createSection(config.heading, config.fallbackRaw || 'Contenido pendiente.');
+    const blockGroups = chunkBlocks(splitSectionIntoBlocks(section), config.kind);
+
+    blockGroups.forEach((group, pageIndex) => {
+      const totalGroups = blockGroups.length;
+      const pageTitle = totalGroups > 1 ? `${config.title} · tramo ${pageIndex + 1}` : config.title;
+      pages.push(
+        buildPage(dayData, {
+          kind: config.kind,
+          kicker: config.kicker,
+          title: pageTitle,
+          summary: createShortSummary(section.text || dayData.summary, 110),
+          blocks: group,
+        }),
+      );
+    });
+  });
+
+  const supportBlocks = [pendingSection, remindersSection, sourcesSection].filter(Boolean).map((section) => buildBlock(section));
+  if (supportBlocks.length) {
+    chunkBlocks(supportBlocks, 'support').forEach((group) => {
+      pages.push(
+        buildPage(dayData, {
+          kind: 'support',
+          kicker: 'Soporte editorial',
+          title: 'Pendientes, recordatorios y fuentes',
+          summary: createShortSummary(group.map((block) => block.text).join(' '), 110),
+          blocks: group,
+        }),
+      );
+    });
+  }
+
+  pages.push(
+    buildPage(dayData, {
+      kind: 'support',
+      kicker: 'Registro visual',
+      title: 'Assets pendientes',
+      summary: dayData.assets.length
+        ? `${dayData.assets.length} asset${dayData.assets.length === 1 ? '' : 's'} registrados para esta jornada.`
+        : 'La jornada todavía no tiene assets aprobados.',
+      blocks: [
+        buildBlock(
+          { heading: 'Assets pendientes', raw: '' },
+          {
+            heading: 'Assets pendientes',
+            html: `<div class="asset-list">${buildAssetsMarkup(dayData)}</div>`,
+            text: dayData.assets.map((asset) => `${asset.title} ${asset.description}`).join(' ') || 'Sin assets cargados',
+            density: 'regular',
+            tone: dayData.assets.length ? 'default' : 'context',
+          },
+        ),
+      ],
+    }),
+  );
+
+  return pages;
+}
+
+function buildDayPages(dayData) {
+  const pages = PRESENTATION_PRIORITIES.has(dayData.slug) ? buildPriorityDayPages(dayData) || buildGenericDayPages(dayData) : buildGenericDayPages(dayData);
+
+  return pages.map((page, index, collection) => ({
+    ...page,
+    id: `${dayData.slug}-${String(index + 1).padStart(2, '0')}`,
+    progressLabel: `${dayData.label} · página ${index + 1}/${collection.length}`,
+    pageNumber: index + 1,
+    totalPages: collection.length,
+  }));
 }
 
 async function loadDay(day) {
@@ -277,237 +899,124 @@ async function loadDay(day) {
     const parsed = parseSections(trimmed);
     const sections = trimmed ? sortSections(parsed.sections) : buildFallbackSections(day);
     const summarySection = getSectionByHeading(sections, 'Resumen');
+    const agendaSection = getSectionByHeading(sections, 'Agenda');
     const expositionSection = getSectionByHeading(sections, 'Bloque de exposición');
     const institutionalSection = getSectionByHeading(sections, 'Bloque institucional SENA');
     const assetsSection = getSectionByHeading(sections, 'Assets pendientes');
     const isPending = !trimmed;
+    const status = resolveDayStatus(isPending);
 
-    return {
+    const dayData = {
       ...day,
       title: parsed.title || `${day.label} — Contenido pendiente`,
       sections,
       summary: summarySection?.text || 'Contenido pendiente.',
+      shortSummary: createShortSummary(summarySection?.text || agendaSection?.text || DAY_NOTES[day.slug] || parsed.title || day.label),
+      status,
       assets: extractAssets(assetsSection),
       hasInstitutionalBlock: Boolean(institutionalSection),
       hasExpositionBlock: Boolean(expositionSection) || day.slug === 'viernes',
       isPending,
     };
+
+    dayData.pages = buildDayPages(dayData);
+    return dayData;
   } catch (error) {
     const sections = buildFallbackSections(day);
-    return {
+    const status = resolveDayStatus(true);
+    const dayData = {
       ...day,
       title: `${day.label} — Contenido pendiente`,
       sections,
       summary: sections[0].text,
+      shortSummary: createShortSummary(sections[0].text),
+      status,
       assets: [],
       hasInstitutionalBlock: false,
       hasExpositionBlock: day.slug === 'viernes',
       isPending: true,
       error: error.message,
     };
+
+    dayData.pages = buildDayPages(dayData);
+    return dayData;
   }
 }
 
-function buildSectionNav(dayData) {
-  const visibleSections = dayData.sections.filter((section) => section.heading !== 'Assets pendientes');
-  if (!visibleSections.length) {
-    return '<p class="card__body">Contenido pendiente.</p>';
-  }
-
+function renderBlock(block) {
   return `
-    <div class="section-links">
-      ${visibleSections
-        .map(
-          (section) => `
-            <a class="section-link" href="#${dayData.slug}-${section.anchor}" data-target-id="${dayData.slug}-${section.anchor}">
-              <span>${section.heading}</span>
-              <span>Ir</span>
-            </a>
-          `,
-        )
-        .join('')}
-    </div>
-  `;
-}
-
-function buildStandardCard(dayData, section, extraClass = '') {
-  return `
-    <article class="card ${extraClass}" id="${dayData.slug}-${section.anchor}">
-      <span class="card__eyebrow">${dayData.label}</span>
-      <h3 class="card__title">${section.heading}</h3>
-      <div class="card__body">${section.html}</div>
+    <article class="page-block page-block--${block.density} page-block--${block.tone}">
+      <header class="page-block__header">
+        <h3 class="page-block__title">${escapeHtml(block.heading)}</h3>
+      </header>
+      <div class="page-block__body">${block.html}</div>
     </article>
   `;
 }
 
-function buildAssetsCard(dayData) {
-  const assetMarkup = dayData.assets.length
-    ? dayData.assets
-        .map(
-          (asset) => `
-            <article class="asset-card">
-              <span class="asset-chip">${escapeHtml(asset.status)}</span>
-              <strong>${escapeHtml(asset.title)}</strong>
-              <span>${escapeHtml(asset.description)}</span>
-              <span>Fuente: ${escapeHtml(asset.source)}</span>
-              <span>Permiso: ${escapeHtml(asset.permission)}</span>
-              ${asset.note ? `<span>Nota: ${escapeHtml(asset.note)}</span>` : ''}
-            </article>
-          `,
-        )
-        .join('')
-    : '<article class="asset-card"><strong>Sin assets cargados</strong><span>La jornada todavía no tiene fotos aprobadas.</span></article>';
-
+function renderPage(dayData, dayIndex, page, pageIndex) {
   return `
-    <article class="card card--wide card--pending" id="${dayData.slug}-assets-pendientes">
-      <span class="card__eyebrow">Assets pendientes</span>
-      <h3 class="card__title">Registro visual del día</h3>
-      <div class="asset-list">${assetMarkup}</div>
-    </article>
-  `;
-}
-
-function renderDay(dayData, index) {
-  const summarySection = getSectionByHeading(dayData.sections, 'Resumen');
-  const agendaSection = getSectionByHeading(dayData.sections, 'Agenda');
-  const themesSection = getSectionByHeading(dayData.sections, 'Temas');
-  const responsibleSection = getSectionByHeading(dayData.sections, 'Responsables');
-  const narrativeSection = getSectionByHeading(dayData.sections, 'Desarrollo de la jornada');
-  const institutionalSection = getSectionByHeading(dayData.sections, 'Bloque institucional SENA');
-  const expositionSection = getSectionByHeading(dayData.sections, 'Bloque de exposición');
-  const pendingSection = getSectionByHeading(dayData.sections, 'Pendientes de verificación') || getSectionByHeading(dayData.sections, 'Pendientes de ampliación o confirmación');
-  const remindersSection = getSectionByHeading(dayData.sections, 'Recordatorios');
-  const rightsSection = getSectionByHeading(dayData.sections, 'Derechos, deberes y faltas del aprendiz');
-  const additionalSection = getSectionByHeading(dayData.sections, 'Otros temas mencionados en la jornada');
-  const sourcesSection = getSectionByHeading(dayData.sections, 'Fuentes institucionales verificadas');
-
-  const cards = [
-    buildStandardCard(dayData, agendaSection || { heading: 'Agenda', anchor: 'agenda', html: '<p>Contenido pendiente.</p>' }),
-    buildStandardCard(dayData, themesSection || { heading: 'Temas', anchor: 'temas', html: '<p>Contenido pendiente.</p>' }),
-    buildStandardCard(dayData, responsibleSection || { heading: 'Responsables', anchor: 'responsables', html: '<p>Contenido pendiente.</p>' }, 'card--tall'),
-  ];
-
-  if (narrativeSection) cards.push(buildStandardCard(dayData, narrativeSection, 'card--narrative'));
-  if (rightsSection) cards.push(buildStandardCard(dayData, rightsSection, 'card--wide'));
-  if (additionalSection) cards.push(buildStandardCard(dayData, additionalSection, 'card--wide'));
-  if (institutionalSection) {
-    cards.push(`
-      <article class="card card--institutional" id="${dayData.slug}-${institutionalSection.anchor}">
-        <span class="card__eyebrow">Miércoles institucional</span>
-        <h3 class="card__title">Bloque institucional SENA</h3>
-        <div class="card__body">${institutionalSection.html}</div>
-        ${sourcesSection ? `<div class="institutional-source">${sourcesSection.html}</div>` : ''}
-      </article>
-    `);
-  }
-
-  if (dayData.slug === 'viernes') {
-    cards.push(
-      buildStandardCard(
-        dayData,
-        expositionSection || {
-          heading: 'Bloque de exposición',
-          anchor: 'bloque-de-exposicion',
-          html: '<p>Espacio reservado para el cierre y la exposición final. Contenido pendiente.</p>',
-        },
-        'card--wide card--pending',
-      ),
-    );
-  }
-
-  if (pendingSection) cards.push(buildStandardCard(dayData, pendingSection, 'card--wide card--pending'));
-  if (remindersSection) cards.push(buildStandardCard(dayData, remindersSection));
-  cards.push(buildAssetsCard(dayData));
-
-  return `
-    <section class="slide" id="slide-${dayData.slug}" data-slide data-day="${dayData.slug}" data-index="${index + 1}" data-state="inactive">
+    <section
+      class="slide slide--day slide--${page.kind}"
+      id="page-${page.id}"
+      data-page
+      data-state="inactive"
+      data-day="${dayData.slug}"
+      data-day-index="${dayIndex}"
+      data-page-index="${pageIndex}"
+      data-day-label="${escapeHtml(dayData.label)}"
+      data-day-summary="${escapeHtml(dayData.shortSummary)}"
+      data-page-label="${escapeHtml(page.title)}"
+      data-page-summary="${escapeHtml(page.summary)}"
+      data-page-kind="${page.kind}"
+      data-day-total="${dayData.pages.length}"
+      aria-hidden="true"
+      hidden
+    >
       <div class="slide__inner">
         <header class="slide__header">
           <div class="slide__marker">
-            <span class="slide__marker-step">Jornada ${String(index + 1).padStart(2, '0')}</span>
+            <span class="slide__marker-step">Jornada ${String(dayIndex + 1).padStart(2, '0')}</span>
             <span class="slide__marker-line" aria-hidden="true"></span>
+            <span class="slide__marker-page">Página ${String(pageIndex + 1).padStart(2, '0')} / ${String(dayData.pages.length).padStart(2, '0')}</span>
           </div>
-          <span class="eyebrow">Semana de inducción · ${dayData.label}</span>
+          <span class="eyebrow">${escapeHtml(page.kicker)}</span>
           <div class="slide__header-row">
             <div>
-              <h2 class="slide__title">${escapeHtml(dayData.title)}</h2>
-              <p class="slide__summary">${escapeHtml(summarySection?.text || dayData.summary)}</p>
+              <h2 class="slide__title">${escapeHtml(page.title)}</h2>
+              <p class="slide__summary">${escapeHtml(page.summary)}</p>
             </div>
-            <span class="badge ${dayData.isPending ? 'badge--pending' : 'badge--available'}">${dayData.isPending ? 'Pendiente' : 'Disponible'}</span>
+            <span class="badge ${dayData.status === 'pending' ? 'badge--pending' : 'badge--available'}">${getStatusLabel(dayData.status)}</span>
           </div>
         </header>
 
-        <section class="day-grid">
-          <article class="card card--wide">
-            <span class="card__eyebrow">Navegación interna</span>
-            <h3 class="card__title">Saltos rápidos por sección</h3>
-            ${buildSectionNav(dayData)}
-          </article>
-          ${cards.join('')}
+        <section class="page-panel page-panel--${page.kind}">
+          <div class="page-panel__grid">
+            ${page.blocks.map(renderBlock).join('')}
+          </div>
         </section>
       </div>
     </section>
   `;
 }
 
-function renderHero(days) {
-  const availableDays = days.filter((day) => !day.isPending).length;
-  return `
-    <section class="slide" id="slide-hero" data-slide data-day="hero" data-index="0" data-state="active">
-      <div class="slide__inner">
-        <div class="hero__layout">
-          <div class="slide__header">
-            <span class="eyebrow">Inducción SENA · Experiencia semanal</span>
-            <div class="hero__band" aria-label="Principios de la experiencia">
-              <span class="hero__band-item">Recorrido semanal</span>
-              <span class="hero__band-item">Fuente canónica</span>
-              <span class="hero__band-item">Énfasis institucional</span>
-            </div>
-            <h1 class="hero__title">Una semana, cinco jornadas, un relato continuo.</h1>
-            <p class="hero__lead">Esta landing toma los Markdown canónicos como fuente de verdad y los convierte en una experiencia tipo presentación: navegación rápida, transiciones fluidas y estados pendientes visibles cuando todavía falta información.</p>
-            <div class="hero-actions">
-              <a class="button-link button-link--primary" href="#slide-lunes">Empezar recorrido</a>
-              <a class="button-link button-link--ghost" href="#slide-miercoles">Ir al bloque institucional</a>
-            </div>
-          </div>
-
-          <aside class="hero-card">
-            <span class="hero-card__label">Ruta semanal</span>
-            <div class="hero-card__list">
-              ${days
-                .map(
-                  (day, index) => `
-                    <div class="hero-card__list-item">
-                      <strong>${String(index + 1).padStart(2, '0')} · ${day.label}</strong>
-                      <span>${day.isPending ? 'Pendiente' : 'Disponible'}</span>
-                    </div>
-                  `,
-                )
-                .join('')}
-            </div>
-            <dl class="hero-card__meta">
-              <div class="meta-row"><dt>Días disponibles</dt><dd>${availableDays}/5</dd></div>
-              <div class="meta-row"><dt>Bloque destacado</dt><dd>Miércoles institucional</dd></div>
-              <div class="meta-row"><dt>Filosofía editorial</dt><dd>Sin inventar contenido</dd></div>
-            </dl>
-          </aside>
-        </div>
-      </div>
-    </section>
-  `;
-}
-
 function renderDayNav(days) {
+  if (!dayNav) return;
+
   dayNav.innerHTML = days
     .map(
       (day, index) => `
-        <button class="day-pill" type="button" data-jump-to="slide-${day.slug}" data-day-link="${day.slug}">
-          <span class="day-pill__count">${index + 1}</span>
-          <span class="day-pill__meta">
-            <span class="day-pill__label">${day.label}</span>
-            <span class="day-pill__title">${escapeHtml(day.title)}</span>
-          </span>
-          <span class="badge ${day.isPending ? 'badge--pending' : 'badge--available'}">${day.isPending ? 'Pendiente' : 'Activo'}</span>
+        <button
+          class="day-pill"
+          type="button"
+          data-day-link
+          data-day-index="${index}"
+          data-day-status="${day.status}"
+          aria-label="Ir a ${day.label}"
+        >
+          <span class="day-pill__count">${String(index + 1).padStart(2, '0')}</span>
+          <span class="day-pill__label">${day.label}</span>
+          <span class="day-pill__state" aria-hidden="true"></span>
         </button>
       `,
     )
@@ -515,7 +1024,9 @@ function renderDayNav(days) {
 }
 
 function renderDeck(days) {
-  slidesTrack.innerHTML = `${renderHero(days)}${days.map(renderDay).join('')}`;
+  if (!slidesTrack) return;
+
+  slidesTrack.innerHTML = days.map((day, dayIndex) => day.pages.map((page, pageIndex) => renderPage(day, dayIndex, page, pageIndex)).join('')).join('');
   renderDayNav(days);
 }
 
@@ -528,7 +1039,7 @@ async function init() {
     new CustomEvent('landing:rendered', {
       detail: {
         days,
-        totalSlides: days.length + 1,
+        totalPages: days.reduce((total, day) => total + day.pages.length, 0),
       },
     }),
   );
