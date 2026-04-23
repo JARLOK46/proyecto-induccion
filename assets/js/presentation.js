@@ -1,13 +1,3 @@
-const progressBar = document.querySelector('[data-progress-bar]');
-const currentLabel = document.querySelector('[data-current-label]');
-const railCurrentLabel = document.querySelector('[data-rail-current-label]');
-const railCurrentCopy = document.querySelector('[data-rail-current-copy]');
-const currentDayProgress = document.querySelector('[data-current-day-progress]');
-const currentPageProgress = document.querySelector('[data-current-page-progress]');
-const pageStepper = document.querySelector('[data-page-stepper]');
-const previousButton = document.querySelector('[data-action="previous"]');
-const nextButton = document.querySelector('[data-action="next"]');
-
 let days = [];
 let deckPages = [];
 let state = { dayIndex: 0, pageIndex: 0 };
@@ -20,36 +10,6 @@ function clampState(dayIndex, pageIndex) {
   return { dayIndex: safeDayIndex, pageIndex: safePageIndex };
 }
 
-function getFlatIndex(dayIndex, pageIndex) {
-  return days.slice(0, dayIndex).reduce((total, day) => total + day.pages.length, 0) + pageIndex;
-}
-
-function renderPageStepper(dayIndex, pageIndex) {
-  if (!pageStepper) return;
-  const day = days[dayIndex];
-  if (!day) {
-    pageStepper.innerHTML = '';
-    return;
-  }
-
-  pageStepper.innerHTML = day.pages
-    .map(
-      (page, index) => `
-        <button
-          class="page-stepper__button ${index === pageIndex ? 'is-active' : ''}"
-          type="button"
-          data-page-jump="${index}"
-          aria-current="${index === pageIndex ? 'true' : 'false'}"
-          aria-label="Ir a la página ${index + 1}: ${page.title}"
-          title="${page.title}"
-        >
-          <span class="page-stepper__index">${String(index + 1).padStart(2, '0')}</span>
-        </button>
-      `,
-    )
-    .join('');
-}
-
 function revealActiveControl(selector) {
   const activeControl = document.querySelector(selector);
   activeControl?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -60,31 +20,14 @@ function updateRail(dayIndex, pageIndex) {
   const page = day?.pages?.[pageIndex];
   if (!day || !page) return;
 
-  if (currentLabel) currentLabel.textContent = page.title;
-  if (railCurrentLabel) railCurrentLabel.textContent = day.label;
-  if (railCurrentCopy) railCurrentCopy.textContent = page.summary || day.shortSummary;
-  if (currentDayProgress) currentDayProgress.textContent = `${dayIndex + 1}/${days.length}`;
-  if (currentPageProgress) currentPageProgress.textContent = `${pageIndex + 1}/${day.pages.length}`;
-
-  const totalDeckPages = deckPages.length;
-  const flatIndex = getFlatIndex(dayIndex, pageIndex);
-  if (progressBar) {
-    const progress = totalDeckPages <= 1 ? 100 : (flatIndex / (totalDeckPages - 1)) * 100;
-    progressBar.style.width = `${progress}%`;
-  }
-
   document.querySelectorAll('[data-day-link]').forEach((button) => {
     const isActive = Number(button.dataset.dayIndex) === dayIndex;
     button.classList.toggle('is-active', isActive);
     button.setAttribute('aria-current', isActive ? 'true' : 'false');
   });
 
-  renderPageStepper(dayIndex, pageIndex);
   revealActiveControl('[data-day-link].is-active');
-  revealActiveControl('.page-stepper__button.is-active');
-
-  if (previousButton) previousButton.disabled = flatIndex === 0;
-  if (nextButton) nextButton.disabled = flatIndex === totalDeckPages - 1;
+  revealActiveControl('.slide[data-state="active"] .page-stepper__button.is-active');
 }
 
 function setActiveDeckPosition(dayIndex, pageIndex) {
@@ -148,11 +91,15 @@ function bindGlobalActions() {
     if (pageButton) {
       event.preventDefault();
       setActiveDeckPosition(state.dayIndex, Number(pageButton.dataset.pageJump));
+      return;
+    }
+
+    const actionButton = event.target.closest('[data-action]');
+    if (actionButton) {
+      event.preventDefault();
+      moveSequential(actionButton.dataset.action === 'previous' ? -1 : 1);
     }
   });
-
-  previousButton?.addEventListener('click', () => moveSequential(-1));
-  nextButton?.addEventListener('click', () => moveSequential(1));
 
   document.addEventListener('keydown', (event) => {
     const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);

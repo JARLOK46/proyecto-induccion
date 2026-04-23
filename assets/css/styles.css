@@ -29,9 +29,14 @@
   --space-6: 2rem;
   --space-7: 3rem;
   --space-8: 4rem;
-  --content-width: 1200px;
+  --content-width: 1080px;
   --rail-width: 10.75rem;
   --rail-offset: calc(var(--rail-width) + clamp(2rem, 4vw, 4rem));
+  --future-bay-width: clamp(15rem, 19vw, 20.5rem);
+  --future-bay-gap: clamp(1.35rem, 2.4vw, 2.2rem);
+  --future-bay-edge: clamp(1rem, 2.8vw, 2.15rem);
+  --deck-balance-shift: clamp(0.95rem, 1.8vw, 1.65rem);
+  --deck-inner-offset: clamp(0.35rem, 0.9vw, 0.85rem);
   --rail-top: clamp(1rem, 2vw, 1.5rem);
   --rail-bottom-gap: 1rem;
   --dock-width: min(28rem, calc(100vw - var(--rail-offset) - 2rem));
@@ -921,8 +926,16 @@ body {
 .slide {
   position: absolute;
   inset: 0;
+  --day-accent: var(--sena-green);
+  --day-accent-soft: rgba(57, 209, 125, 0.18);
+  --day-secondary: var(--signal-gold);
+  --day-panel-glow: rgba(57, 209, 125, 0.14);
   min-height: auto;
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 6vw, 6rem) clamp(1.5rem, 4vw, 3rem) var(--rail-offset);
+  padding:
+    clamp(1.5rem, 4vw, 3rem)
+    calc(var(--future-bay-edge) + var(--future-bay-width) + var(--future-bay-gap))
+    clamp(1.5rem, 4vw, 3rem)
+    calc(var(--rail-offset) + var(--deck-balance-shift));
   align-items: stretch;
   opacity: 0;
   pointer-events: none;
@@ -930,10 +943,62 @@ body {
   transition: opacity var(--transition-drift), transform var(--transition-drift);
 }
 
+.slide::before {
+  content: "";
+  position: absolute;
+  top: clamp(2.25rem, 5vw, 3.5rem);
+  bottom: clamp(2.25rem, 5vw, 3.5rem);
+  right: calc(var(--future-bay-edge) + var(--future-bay-width) + (var(--future-bay-gap) * 0.42));
+  width: 1px;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--day-accent) 42%, rgba(255, 250, 239, 0.18)), transparent);
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.slide::after {
+  content: "";
+  position: absolute;
+  top: clamp(2rem, 4vw, 3.25rem);
+  right: var(--future-bay-edge);
+  bottom: clamp(2rem, 4vw, 3.25rem);
+  width: var(--future-bay-width);
+  border-radius: 2rem;
+  border: 1px solid color-mix(in srgb, var(--day-accent) 18%, rgba(255, 250, 239, 0.08));
+  background:
+    radial-gradient(circle at top, color-mix(in srgb, var(--day-accent-soft) 62%, transparent), transparent 52%),
+    linear-gradient(180deg, rgba(255, 250, 239, 0.05), rgba(6, 17, 28, 0.16));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    inset 0 0 0 999px rgba(6, 17, 28, 0.1),
+    0 18px 48px rgba(3, 10, 18, 0.16);
+  pointer-events: none;
+}
+
 .slide[data-state="active"] {
   opacity: 1;
   pointer-events: auto;
   transform: none;
+}
+
+.slide[data-day="lunes"] {
+  --day-accent: #7ae2a7;
+  --day-accent-soft: rgba(122, 226, 167, 0.18);
+  --day-secondary: #f3c45c;
+  --day-panel-glow: rgba(122, 226, 167, 0.15);
+}
+
+.slide[data-day="martes"] {
+  --day-accent: #f3c45c;
+  --day-accent-soft: rgba(243, 196, 92, 0.18);
+  --day-secondary: #ffe7b1;
+  --day-panel-glow: rgba(243, 196, 92, 0.12);
+}
+
+.slide[data-day="miercoles"] {
+  --day-accent: #7dd6c7;
+  --day-accent-soft: rgba(125, 214, 199, 0.18);
+  --day-secondary: #d6f2eb;
+  --day-panel-glow: rgba(125, 214, 199, 0.14);
 }
 
 .slide[data-state="inactive"] .slide__inner,
@@ -945,14 +1010,66 @@ body {
 .slide__inner {
   width: min(100%, var(--content-width));
   height: calc(100dvh - clamp(2.5rem, 6vw, 4.5rem));
-  margin-inline: auto;
+  margin-right: auto;
+  margin-left: var(--deck-inner-offset);
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: var(--space-5);
+  position: relative;
+  z-index: 1;
 }
 
 .slide__header {
+  display: grid;
+  gap: var(--space-4);
   align-content: start;
+}
+
+.slide__footer,
+.slide__footer-progress,
+.slide__footer-nav,
+.slide__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.slide__footer {
+  justify-content: space-between;
+  padding-top: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--day-accent) 20%, transparent);
+}
+
+.slide__footer-progress {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.slide__footer-copy,
+.slide__footer-total {
+  font-size: 0.82rem;
+  color: var(--ink-secondary);
+}
+
+.slide__footer-progress .progress {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.slide__footer-nav {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.slide__footer-nav .page-stepper {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.slide__footer-actions {
+  flex: 0 0 auto;
 }
 
 .slide__marker-page {
@@ -969,6 +1086,25 @@ body {
   text-transform: uppercase;
 }
 
+.slide__marker-step {
+  border-color: color-mix(in srgb, var(--day-secondary) 42%, transparent);
+  background: color-mix(in srgb, var(--day-secondary) 12%, transparent);
+  color: color-mix(in srgb, var(--day-secondary) 86%, white 14%);
+}
+
+.slide__marker-line {
+  background: linear-gradient(90deg, var(--day-accent), rgba(243, 196, 92, 0));
+}
+
+.slide__marker-page,
+.slide__header .badge {
+  border-color: color-mix(in srgb, var(--day-accent) 26%, transparent);
+}
+
+.slide__header .eyebrow {
+  color: color-mix(in srgb, var(--day-secondary) 76%, white 24%);
+}
+
 .slide__summary {
   max-width: 68ch;
 }
@@ -978,7 +1114,7 @@ body {
   padding: var(--space-5);
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-card);
-  background: linear-gradient(180deg, rgba(10, 26, 40, 0.92), rgba(11, 28, 41, 0.88));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--day-panel-glow) 32%, rgba(10, 26, 40, 0.92)), rgba(11, 28, 41, 0.88));
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow-depth);
   overflow: auto;
@@ -1013,6 +1149,20 @@ body {
 .page-block--context {
   border-color: rgba(243, 196, 92, 0.2);
   background: linear-gradient(180deg, rgba(243, 196, 92, 0.08), rgba(6, 17, 28, 0.2));
+}
+
+.page-block--spotlight {
+  border-color: color-mix(in srgb, var(--day-accent) 34%, transparent);
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--day-accent-soft) 88%, transparent), transparent 48%),
+    linear-gradient(180deg, rgba(255, 250, 239, 0.08), rgba(6, 17, 28, 0.3));
+}
+
+.page-block--institutional {
+  border-color: rgba(125, 214, 199, 0.22);
+  background:
+    linear-gradient(140deg, rgba(125, 214, 199, 0.12), rgba(214, 242, 235, 0.04), rgba(6, 17, 28, 0.22)),
+    linear-gradient(180deg, rgba(255, 250, 239, 0.05), rgba(6, 17, 28, 0.28));
 }
 
 .page-block__header {
@@ -1058,6 +1208,106 @@ body {
 
 .page-block__body a {
   color: #9de7b8;
+}
+
+.editorial-block,
+.editorial-block__narrative,
+.editorial-highlights {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.editorial-block__lede {
+  margin: 0;
+  font-size: 1.04rem;
+  line-height: 1.72;
+  color: var(--ink-strong);
+  max-width: 58ch;
+}
+
+.editorial-block__narrative p,
+.editorial-highlight p,
+.editorial-bullets {
+  margin: 0;
+}
+
+.editorial-highlights {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.editorial-highlight {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--day-accent) 22%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--day-accent-soft) 52%, transparent);
+}
+
+.editorial-highlight__label {
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--day-secondary) 80%, white 20%);
+}
+
+.editorial-bullets {
+  display: grid;
+  gap: 0.75rem;
+  padding-left: 1.2rem;
+  color: var(--ink-secondary);
+}
+
+.slide--welcome-brief .page-panel--cover {
+  background:
+    radial-gradient(circle at top left, rgba(122, 226, 167, 0.14), transparent 36%),
+    linear-gradient(180deg, rgba(10, 30, 34, 0.94), rgba(11, 28, 41, 0.88));
+}
+
+.slide--welcome-brief .page-panel--cover .page-panel__grid,
+.slide--support-matrix .page-panel__grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(17rem, 0.8fr);
+}
+
+.slide--welcome-brief .page-block:first-child {
+  min-height: 100%;
+}
+
+.slide--regulation-brief .page-panel,
+.slide--regulation-sheet .page-panel {
+  border-radius: 1.25rem;
+  background:
+    linear-gradient(180deg, rgba(18, 28, 39, 0.96), rgba(11, 20, 31, 0.92));
+}
+
+.slide--regulation-brief .page-panel--cover .page-panel__grid,
+.slide--regulation-sheet .page-panel__grid {
+  grid-template-columns: minmax(0, 1.28fr) minmax(15rem, 0.72fr);
+}
+
+.slide--regulation-sheet .page-block,
+.slide--regulation-brief .page-block {
+  border-radius: 1rem;
+}
+
+.slide--regulation-sheet .page-block--context,
+.slide--regulation-brief .page-block--context {
+  border-style: dashed;
+  background: linear-gradient(180deg, rgba(243, 196, 92, 0.07), rgba(6, 17, 28, 0.18));
+}
+
+.slide--institutional-atlas .page-panel {
+  background:
+    radial-gradient(circle at top right, rgba(125, 214, 199, 0.14), transparent 34%),
+    linear-gradient(180deg, rgba(9, 24, 35, 0.95), rgba(8, 19, 31, 0.9));
+}
+
+.slide--institutional-atlas .page-panel--cover .page-panel__grid {
+  grid-template-columns: minmax(0, 1.24fr) minmax(16rem, 0.76fr);
+}
+
+.slide--institutional-atlas .page-block--institutional {
+  box-shadow: inset 0 0 0 1px rgba(214, 242, 235, 0.05);
 }
 
 .page-block--dense .page-block__body {
@@ -1150,6 +1400,10 @@ body {
     padding-right: clamp(1rem, 4vw, 2rem);
   }
 
+  .slide::after {
+    display: none;
+  }
+
   .day-rail {
     position: sticky;
     width: auto;
@@ -1169,10 +1423,38 @@ body {
 
   .slide__inner {
     height: calc(100dvh - 12.75rem);
+    margin-inline: auto;
+  }
+
+  .slide__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .slide__footer-progress,
+  .slide__footer-nav {
+    width: 100%;
+  }
+
+  .slide__footer-nav {
+    justify-content: space-between;
+  }
+
+  .slide__footer-nav .page-stepper {
+    justify-content: flex-start;
   }
 
   .page-panel--cover .page-panel__grid,
   .page-panel--core .page-panel__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .editorial-highlights,
+  .slide--support-matrix .page-panel__grid,
+  .slide--welcome-brief .page-panel--cover .page-panel__grid,
+  .slide--regulation-brief .page-panel--cover .page-panel__grid,
+  .slide--regulation-sheet .page-panel__grid,
+  .slide--institutional-atlas .page-panel--cover .page-panel__grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1194,6 +1476,20 @@ body {
   .slide__inner {
     height: calc(100dvh - 15rem);
     gap: var(--space-4);
+  }
+
+  .slide__footer-progress,
+  .slide__footer-nav {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .slide__footer-actions {
+    width: 100%;
+  }
+
+  .slide__footer-actions .control-button {
+    flex: 1 1 0;
   }
 
   .page-panel {

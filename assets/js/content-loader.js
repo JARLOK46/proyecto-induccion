@@ -268,6 +268,58 @@ function createParagraphRaw(paragraphs = []) {
   return paragraphs.filter(Boolean).join('\n\n');
 }
 
+function createEditorialBlock({
+  heading,
+  intro,
+  paragraphs = [],
+  highlights = [],
+  bullets = [],
+  tone = 'context',
+  density = 'regular',
+}) {
+  const narrative = [intro, ...paragraphs].filter(Boolean);
+  const text = [heading, ...narrative, ...highlights, ...bullets].join(' ');
+  const html = `
+    <div class="editorial-block">
+      ${intro ? `<p class="editorial-block__lede">${renderInline(intro)}</p>` : ''}
+      ${paragraphs.length
+        ? `<div class="editorial-block__narrative">${paragraphs.map((paragraph) => `<p>${renderInline(paragraph)}</p>`).join('')}</div>`
+        : ''}
+      ${highlights.length
+        ? `
+          <div class="editorial-highlights" aria-label="Puntos destacados">
+            ${highlights
+              .map(
+                (item) => `
+                  <article class="editorial-highlight">
+                    <span class="editorial-highlight__label">Clave</span>
+                    <p>${renderInline(item)}</p>
+                  </article>
+                `,
+              )
+              .join('')}
+          </div>
+        `
+        : ''}
+      ${bullets.length
+        ? `
+          <ul class="editorial-bullets">
+            ${bullets.map((item) => `<li>${renderInline(item)}</li>`).join('')}
+          </ul>
+        `
+        : ''}
+    </div>
+  `;
+
+  return buildBlock(createSection(heading, createParagraphRaw(narrative)), {
+    heading,
+    html,
+    text,
+    density,
+    tone,
+  });
+}
+
 function extractAssets(section) {
   if (!section?.raw) return [];
   const lines = section.raw.replace(/\r\n/g, '\n').split('\n');
@@ -481,16 +533,29 @@ function buildMondayPages(dayData) {
   return buildCuratedPresentationPages(dayData, () => [
     {
       kind: 'cover',
+      variant: 'welcome-brief',
       kicker: 'Jornada 01',
       title: 'Bienestar, apoyos y reglas para arrancar',
       summary: 'El lunes arma el mapa de entrada del aprendiz: bienestar, apoyos concretos, preparación para la vida laboral y primeras reglas institucionales.',
       blocks: [
-        buildBlock(createSection('Panorama del día', createBulletedRaw([
-          'Bienestar al aprendiz y salud mental como punto de partida.',
-          'Actividades recreativas y desarrollo integral durante la formación.',
-          'Inducción a la vida laboral, proyecto de vida y pruebas de trabajo.',
-          'Socialización de derechos, deberes y estado de verificación de faltas.',
-        ])), { heading: 'Panorama del día', density: 'regular', tone: 'context' }),
+        createEditorialBlock({
+          heading: 'Panorama del día',
+          intro:
+            'El lunes funcionó como una puerta de entrada: antes de hablar de estructura institucional, la jornada puso el foco en cómo se acompaña al aprendiz y qué condiciones concretas existen para sostener su recorrido.',
+          paragraphs: [
+            'La secuencia fue clara en el material fuente: bienestar al aprendiz, apoyos disponibles, actividades para el desarrollo integral, preparación para la vida laboral y primeras reglas de convivencia académica.',
+            'Esa combinación vuelve al lunes una jornada de aterrizaje. No sólo presenta temas; ordena qué apoyos existen, qué responsabilidades empiezan a aparecer y qué asuntos quedan abiertos para el resto de la semana.',
+          ],
+          highlights: [
+            'Salud mental y bienestar aparecieron como punto de partida, no como tema accesorio.',
+            'También se cruzaron empleabilidad, proyecto de vida y reglas del aprendiz dentro de una misma narrativa de ingreso.',
+          ],
+          bullets: [
+            'Actividades recreativas y desarrollo integral durante la formación.',
+            'Socialización de derechos, deberes y estado de verificación de faltas.',
+          ],
+          tone: 'spotlight',
+        }),
         buildBlock(createSection('Qué se llevó el grupo', createBulletedRaw([
           'Se explicaron apoyos institucionales disponibles para aprendices.',
           'Se presentó el beneficio de póliza de accidentes con coberturas y exclusiones.',
@@ -500,6 +565,7 @@ function buildMondayPages(dayData) {
     },
     {
       kind: 'core',
+      variant: 'support-matrix',
       kicker: 'Bienestar en concreto',
       title: 'El bienestar se explicó como sostén real de la trayectoria',
       summary: 'El foco no fue abstracto: bienestar apareció como apoyo emocional, talleres para desarrollo integral y condiciones para sostener la formación.',
@@ -517,6 +583,7 @@ function buildMondayPages(dayData) {
     },
     {
       kind: 'core',
+      variant: 'support-matrix',
       kicker: 'Apoyos institucionales',
       title: 'Los apoyos nombrados fueron concretos, no genéricos',
       summary: 'El lunes dejó explícito qué ayudas sí fueron mencionadas, útil para cualquier aprendiz que necesite ubicar acompañamiento material o académico.',
@@ -536,6 +603,7 @@ function buildMondayPages(dayData) {
     },
     {
       kind: 'detail',
+      variant: 'support-brief',
       kicker: 'Puente a la vida laboral',
       title: 'Proyecto de vida, empleabilidad y tarea asignada',
       summary: 'La jornada no quedó sólo en bienestar: también abrió un frente de preparación laboral y dejó trabajo para seguir comprendiendo la institución.',
@@ -553,6 +621,7 @@ function buildMondayPages(dayData) {
     },
     {
       kind: 'detail',
+      variant: 'support-brief',
       kicker: 'Cobertura y límites',
       title: 'Póliza de accidentes: qué cubre y qué NO cubre',
       summary: 'La póliza apareció como información práctica: se explicaron coberturas, exclusiones y contactos compartidos durante la jornada.',
@@ -571,6 +640,7 @@ function buildMondayPages(dayData) {
     },
     {
       kind: 'support',
+      variant: 'support-brief',
       kicker: 'Reglas del aprendiz',
       title: 'Derechos y deberes ya visibles; faltas todavía pendientes',
       summary: 'El deck deja claro qué reglas sí están respaldadas por fuentes y qué parte normativa todavía no conviene afirmar sin verificación oficial.',
@@ -600,16 +670,29 @@ function buildTuesdayPages(dayData) {
   return buildCuratedPresentationPages(dayData, () => [
     {
       kind: 'cover',
+      variant: 'regulation-brief',
       kicker: 'Jornada 02',
       title: 'Reglamento del aprendiz y marco formativo',
       summary: 'El martes concentró menos temas, pero más marco: reglamento, referencia al Acuerdo 069 de 2004 y una definición breve de formación profesional integral.',
       blocks: [
-        buildBlock(createSection('Qué sí se trabajó', createBulletedRaw([
-          'Revisión del reglamento del aprendiz como eje principal.',
-          'Referencia al Acuerdo 069 de 2004.',
-          'Definición de formación profesional integral.',
-          'Ampliación de temas relacionados con derechos del aprendiz.',
-        ])), { heading: 'Qué sí se trabajó', density: 'regular', tone: 'context' }),
+        createEditorialBlock({
+          heading: 'Panorama del día',
+          intro:
+            'El martes bajó la velocidad del arranque y concentró la atención en el marco que ordena la formación: reglamento del aprendiz, referencia normativa y una definición corta pero decisiva sobre qué significa formarse integralmente.',
+          paragraphs: [
+            'A diferencia del lunes, esta jornada no se apoya en variedad de temas sino en un eje más sobrio: entender reglas, referencias y lenguaje base para no navegar la semana desde intuiciones sueltas.',
+            'Por eso la slide no busca llenar espacio con detalles no confirmados. Presenta lo que sí quedó dicho y deja visible lo que todavía requiere ampliación documental.',
+          ],
+          highlights: [
+            'El reglamento fue el centro del día.',
+            'La referencia al Acuerdo 069 de 2004 quedó nombrada, pero sin redacción jurídica confirmada en la fuente recibida.',
+          ],
+          bullets: [
+            'Definición de formación profesional integral.',
+            'Ampliación de temas relacionados con derechos del aprendiz.',
+          ],
+          tone: 'spotlight',
+        }),
         buildBlock(createSection('Decisión editorial del archivo', createParagraphRaw([
           'El desarrollo detallado de derechos, deberes y faltas queda consolidado en lunes para evitar duplicación y desorden entre archivos.',
           'Eso deja a martes como una slide de marco conceptual, no como repetición del lunes.',
@@ -618,6 +701,7 @@ function buildTuesdayPages(dayData) {
     },
     {
       kind: 'core',
+      variant: 'regulation-sheet',
       kicker: 'Marco regulatorio',
       title: 'El centro del martes fue ordenar el reglamento',
       summary: 'La jornada ubicó al reglamento del aprendiz como eje y dejó la referencia al Acuerdo 069 de 2004 sin sobreprometer alcances no confirmados.',
@@ -634,6 +718,7 @@ function buildTuesdayPages(dayData) {
     },
     {
       kind: 'detail',
+      variant: 'regulation-sheet',
       kicker: 'Punto clave del día',
       title: 'La idea que quedó explícita: formar en ser, aprender y hacer',
       summary: 'La jornada aterrizó la formación profesional integral en una tríada concreta y evitó meter conceptos que el usuario aclaró que NO se vieron ese día.',
@@ -654,6 +739,7 @@ function buildTuesdayPages(dayData) {
     },
     {
       kind: 'support',
+      variant: 'regulation-sheet',
       kicker: 'Pendientes reales',
       title: 'Lo que todavía no conviene afirmar',
       summary: 'El martes deja varios huecos documentales abiertos y la presentación los muestra como pendientes, no como certezas inventadas.',
@@ -676,16 +762,29 @@ function buildWednesdayPages(dayData) {
   return buildCuratedPresentationPages(dayData, () => [
     {
       kind: 'cover',
+      variant: 'institutional-atlas',
       kicker: 'Jornada 03',
       title: 'Conociendo al SENA desde su identidad institucional',
       summary: 'El miércoles ordena lo esencial: qué es el SENA, cuál es su misión, cómo se organiza y qué plataformas o temas quedaron sólo mencionados.',
       blocks: [
-        buildBlock(createSection('Panorama del día', createBulletedRaw([
-          'Qué es el SENA y cuál es su propósito.',
-          'Misión, visión y estructura organizacional.',
-          'Funciones principales y símbolos institucionales.',
-          'SENNOVA, SISGE y contrato de aprendizaje por SGVA como temas mencionados.',
-        ])), { heading: 'Panorama del día', density: 'regular', tone: 'context' }),
+        createEditorialBlock({
+          heading: 'Panorama del día',
+          intro:
+            'El miércoles cambia el ángulo de la semana: deja de mirar apoyos o reglas inmediatas y construye contexto institucional para entender qué es el SENA, cuál es su misión y cómo se organiza.',
+          paragraphs: [
+            'La jornada toma contenido verificado de identidad institucional y lo pone en orden: definición de la entidad, misión, visión, estructura, funciones y símbolos que vuelven reconocible al organismo público.',
+            'Al mismo tiempo, la presentación mantiene separados los temas apenas mencionados —como SENNOVA, SISGE o SGVA— para no exagerar alcances que todavía no están confirmados con el mismo nivel de detalle.',
+          ],
+          highlights: [
+            'Primero se entiende la institución; después se leen mejor sus plataformas y procesos.',
+            'La jornada mezcla identidad, estructura y función pública en una misma lectura institucional.',
+          ],
+          bullets: [
+            'Misión, visión y estructura organizacional.',
+            'Funciones principales y símbolos institucionales.',
+          ],
+          tone: 'institutional',
+        }),
         buildBlock(createSection('Idea fuerza', createParagraphRaw([
           'Este día no gira sobre trámites aislados: construye contexto institucional para que el aprendiz entienda dónde está parado.',
         ])), { heading: 'Idea fuerza', density: 'compact' }),
@@ -693,6 +792,7 @@ function buildWednesdayPages(dayData) {
     },
     {
       kind: 'detail',
+      variant: 'institutional-atlas',
       kicker: 'Base institucional',
       title: 'Qué es el SENA y por qué existe',
       summary: 'La presentación condensa la definición institucional y la conecta con la misión publicada por la entidad.',
@@ -710,6 +810,7 @@ function buildWednesdayPages(dayData) {
     },
     {
       kind: 'detail',
+      variant: 'institutional-atlas',
       kicker: 'Visión y organización',
       title: 'Hacia dónde va el SENA y cómo se compone',
       summary: 'La jornada aterrizó la visión institucional hacia 2026 y la estructura organizacional que sostiene ese alcance nacional.',
@@ -729,6 +830,7 @@ function buildWednesdayPages(dayData) {
     },
     {
       kind: 'detail',
+      variant: 'institutional-atlas',
       kicker: 'Funciones visibles',
       title: 'Funciones públicas y símbolos que hacen legible a la entidad',
       summary: 'Además de la estructura, el miércoles dejó visibles funciones concretas del SENA y los símbolos institucionales verificados.',
@@ -746,6 +848,7 @@ function buildWednesdayPages(dayData) {
     },
     {
       kind: 'support',
+      variant: 'institutional-atlas',
       kicker: 'Temas abiertos',
       title: 'Plataformas mencionadas y límites de lo confirmado',
       summary: 'SENNOVA, SISGE y SGVA aparecieron en la jornada, pero el deck muestra explícitamente que todavía faltan alcances y flujos precisos.',
@@ -954,10 +1057,59 @@ function renderBlock(block) {
   `;
 }
 
-function renderPage(dayData, dayIndex, page, pageIndex) {
+function renderPageStepper(dayData, pageIndex) {
+  return `
+    <div class="page-stepper" aria-label="Páginas internas de ${escapeHtml(dayData.label)}">
+      ${dayData.pages
+        .map(
+          (page, index) => `
+            <button
+              class="page-stepper__button ${index === pageIndex ? 'is-active' : ''}"
+              type="button"
+              data-page-jump="${index}"
+              aria-current="${index === pageIndex ? 'true' : 'false'}"
+              aria-label="Ir a la página ${index + 1}: ${escapeHtml(page.title)}"
+              title="${escapeHtml(page.title)}"
+            >
+              <span class="page-stepper__index">${String(index + 1).padStart(2, '0')}</span>
+            </button>
+          `,
+        )
+        .join('')}
+    </div>
+  `;
+}
+
+function renderPageFooter(dayData, dayIndex, pageIndex, flatIndex, totalDeckPages) {
+  const progress = totalDeckPages <= 1 ? 100 : (flatIndex / (totalDeckPages - 1)) * 100;
+  const isFirstPage = flatIndex === 0;
+  const isLastPage = flatIndex === totalDeckPages - 1;
+
+  return `
+    <footer class="slide__footer" aria-label="Navegación de la presentación">
+      <div class="slide__footer-progress" aria-label="Avance de la presentación">
+        <span class="slide__footer-copy">Jornada ${dayIndex + 1}/${DAY_ORDER.length} · Página ${pageIndex + 1}/${dayData.pages.length}</span>
+        <div class="progress" aria-hidden="true">
+          <div class="progress__bar" style="width: ${progress}%"></div>
+        </div>
+        <span class="slide__footer-total">Semana ${flatIndex + 1}/${totalDeckPages}</span>
+      </div>
+
+      <div class="slide__footer-nav">
+        ${renderPageStepper(dayData, pageIndex)}
+        <div class="slide__footer-actions" aria-label="Navegación secuencial">
+          <button class="control-button control-button--inline" type="button" data-action="previous" aria-label="Página o jornada anterior" ${isFirstPage ? 'disabled' : ''}>← Anterior</button>
+          <button class="control-button control-button--inline" type="button" data-action="next" aria-label="Página o jornada siguiente" ${isLastPage ? 'disabled' : ''}>Siguiente →</button>
+        </div>
+      </div>
+    </footer>
+  `;
+}
+
+function renderPage(dayData, dayIndex, page, pageIndex, flatIndex, totalDeckPages) {
   return `
     <section
-      class="slide slide--day slide--${page.kind}"
+      class="slide slide--day slide--${page.kind} ${page.variant ? `slide--${page.variant}` : ''}"
       id="page-${page.id}"
       data-page
       data-state="inactive"
@@ -969,6 +1121,7 @@ function renderPage(dayData, dayIndex, page, pageIndex) {
       data-page-label="${escapeHtml(page.title)}"
       data-page-summary="${escapeHtml(page.summary)}"
       data-page-kind="${page.kind}"
+      data-page-variant="${escapeHtml(page.variant || '')}"
       data-day-total="${dayData.pages.length}"
       aria-hidden="true"
       hidden
@@ -995,6 +1148,8 @@ function renderPage(dayData, dayIndex, page, pageIndex) {
             ${page.blocks.map(renderBlock).join('')}
           </div>
         </section>
+
+        ${renderPageFooter(dayData, dayIndex, pageIndex, flatIndex, totalDeckPages)}
       </div>
     </section>
   `;
@@ -1026,7 +1181,16 @@ function renderDayNav(days) {
 function renderDeck(days) {
   if (!slidesTrack) return;
 
-  slidesTrack.innerHTML = days.map((day, dayIndex) => day.pages.map((page, pageIndex) => renderPage(day, dayIndex, page, pageIndex)).join('')).join('');
+  const totalDeckPages = days.reduce((total, currentDay) => total + currentDay.pages.length, 0);
+
+  slidesTrack.innerHTML = days
+    .map((day, dayIndex) => {
+      const previousPages = days.slice(0, dayIndex).reduce((total, currentDay) => total + currentDay.pages.length, 0);
+      return day.pages
+        .map((page, pageIndex) => renderPage(day, dayIndex, page, pageIndex, previousPages + pageIndex, totalDeckPages))
+        .join('');
+    })
+    .join('');
   renderDayNav(days);
 }
 
